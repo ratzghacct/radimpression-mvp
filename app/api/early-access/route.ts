@@ -1,7 +1,46 @@
-import { NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
+import { NextResponse } from "next/server"
 
-export async function POST(request: NextRequest) {
+// Mock early access data for demo (replace with Supabase later)
+const earlyAccessUsers = [
+  {
+    id: 1,
+    email: "dr.smith@hospital.com",
+    name: "Dr. Sarah Smith",
+    created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    status: "pending"
+  },
+  {
+    id: 2,
+    email: "dr.johnson@clinic.org", 
+    name: "Dr. Michael Johnson",
+    created_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+    status: "approved"
+  },
+  {
+    id: 3,
+    email: "dr.wilson@medical.edu",
+    name: "Dr. Emily Wilson", 
+    created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    status: "pending"
+  }
+]
+
+export async function GET() {
+  try {
+    return NextResponse.json({ 
+      users: earlyAccessUsers,
+      count: earlyAccessUsers.length 
+    })
+  } catch (error) {
+    console.error("Error fetching early access users:", error)
+    return NextResponse.json(
+      { error: "Failed to fetch early access users" },
+      { status: 500 }
+    )
+  }
+}
+
+export async function POST(request: Request) {
   try {
     const { email, name } = await request.json()
     
@@ -9,43 +48,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email required" }, { status: 400 })
     }
 
-    const { data, error } = await supabase
-      .from('early_access')
-      .insert({
-        email,
-        name: name || '',
-        created_at: new Date().toISOString(),
-        status: 'pending'
-      })
-      .select()
-
-    if (error) {
-      console.error("Supabase error:", error)
-      return NextResponse.json({ error: "Failed to save email" }, { status: 500 })
-    }
-
-    return NextResponse.json({ success: true, message: "Thank you! We'll contact you soon." })
+    // For now, just return success (replace with real database later)
+    return NextResponse.json({ 
+      success: true, 
+      message: "Thank you! We'll contact you soon." 
+    })
   } catch (error) {
     console.error("Error saving early access email:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-  }
-}
-
-export async function GET(request: NextRequest) {
-  try {
-    const { data: earlyAccessUsers, error } = await supabase
-      .from('early_access')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      console.error("Supabase error:", error)
-      return NextResponse.json({ error: "Failed to fetch early access users" }, { status: 500 })
-    }
-
-    return NextResponse.json({ users: earlyAccessUsers || [] })
-  } catch (error) {
-    console.error("Error fetching early access users:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
