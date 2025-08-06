@@ -1,0 +1,322 @@
+"use client"
+import { useAuth } from "@/contexts/auth-context"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Shield, Users, DollarSign, Activity, Ban, CheckCircle, ArrowLeft, Loader2 } from "lucide-react"
+import { toast } from "@/hooks/use-toast"
+
+interface UserUsage {
+  userId: string
+  email: string
+  displayName: string
+  totalTokensUsed: number
+  totalImpressions: number
+  isBlocked: boolean
+  lastUsed: Date
+  createdAt: Date
+  tokensToday: number
+  impressionsToday: number
+}
+
+export default function AdminPage() {
+  const { user, loading: authLoading } = useAuth()
+console.log("Admin page - user object:", user, "authLoading:", authLoading)
+  const [users, setUsers] = useState<UserUsage[]>([])
+  const [loading, setLoading] = useState(true)
+  const router = useRouter()
+
+  useEffect(() => {
+  console.log("Admin useEffect - authLoading:", authLoading, "user:", user?.email)
+  
+  if (user?.email) {
+    console.log("Calling fetchUsers with email:", user.email)
+    fetchUsers(user.email)
+  }
+}, [user])
+
+  const fetchUsers = async (userEmail: string) => {
+    try {
+      // For demo purposes, bypass authentication
+      const response = await fetch("/api/admin/users", {
+  headers: {
+    "x-user-email": user?.email,
+  },
+})
+
+      if (response.ok) {
+        const data = await response.json()
+        setUsers(data.users)
+      } else {
+        const errorData = await response.json()
+        console.error("API error:", errorData)
+        toast({
+          title: "Error",
+          description: "Failed to load users",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error fetching users:", error)
+      toast({
+        title: "Error",
+        description: "Failed to connect to server",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleBlockUser = async (userId: string, action: "block" | "unblock") => {
+    try {
+      const response = await fetch("/api/admin/block-user", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId,
+          action,
+          adminEmail: "demo@radimpression.com", // Demo admin
+        }),
+      })
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: `User ${action}ed successfully`,
+        })
+        fetchUsers(user?.email || "") // Refresh the list
+      } else {
+        throw new Error("Failed to update user status")
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: `Failed to ${action} user`,
+        variant: "destructive",
+      })
+    }
+  }
+
+const handleActivateUser = async (userId: string) => {
+  try {
+    // Get selected plan from dropdown
+    const planSelect = document.getElementById(`plan-${userId}`) as HTMLSelectElement
+    const selectedPlan = planSelect.value
+    
+    const response = await fetch("/api/admin/activate-user", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        userId,
+        plan: selectedPlan,
+        adminEmail: user?.email,
+      }),
+    })
+
+    if (response.ok) {
+      toast({
+        title: "Success",
+        description: `User activated with ${selectedPlan} plan`,
+      })
+      fetchUsers(user?.email || "") // Refresh the list
+    } else {
+      throw new Error("Failed to activate user")
+    }
+  } catch (error) {
+    toast({
+      title: "Error",
+      description: "Failed to activate user",
+      variant: "destructive",
+    })
+  }
+}
+
+  const totalTokens = users.reduce((sum, user) => sum + user.totalTokensUsed, 0)
+  const totalImpressions = users.reduce((sum, user) => sum + user.totalImpressions, 0)
+  const activeUsers = users.filter((user) => !user.isBlocked).length
+  const estimatedCost = (totalTokens * 0.00006).toFixed(2) // Rough estimate
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center space-x-4">
+            <Button variant="ghost" onClick={() => router.push("/")} className="text-gray-600 hover:text-gray-900">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to App
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+              <p className="text-gray-600">Manage users and monitor usage</p>
+            </div>
+          </div>
+          <Badge className="bg-red-100 text-red-700">
+            <Shield className="w-4 h-4 mr-1" />
+            Demo Admin Mode
+          </Badge>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Early Access Requests</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p>Coming soon - Early access member management</p>
+            </CardContent>
+          </Card>
+              <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{users.length}</div>
+              <p className="text-xs text-muted-foreground">{activeUsers} active</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Impressions</CardTitle>
+              <Activity className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{totalImpressions.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground">All time</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Tokens</CardTitle>
+              <Activity className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{totalTokens.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground">OpenAI API usage</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Estimated Cost</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">${estimatedCost}</div>
+              <p className="text-xs text-muted-foreground">OpenAI API costs</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Users Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>User Management</CardTitle>
+            <CardDescription>Monitor user activity and manage access</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="text-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin mx-auto mb-4" />
+                <p>Loading users...</p>
+              </div>
+            ) : users.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>No users found. Generate some impressions first!</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>User</TableHead>
+                    <TableHead>Impressions</TableHead>
+                    <TableHead>Tokens Used</TableHead>
+                    <TableHead>Est. Cost</TableHead>
+                    <TableHead>Last Used</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((user) => (
+                    <TableRow key={user.userId}>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{user.displayName}</div>
+                          <div className="text-sm text-gray-500">{user.email}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{user.totalImpressions}</div>
+                          <div className="text-sm text-gray-500">Today: {user.impressionsToday}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{user.totalTokensUsed.toLocaleString()}</div>
+                          <div className="text-sm text-gray-500">Today: {user.tokensToday.toLocaleString()}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>${(user.totalTokensUsed * 0.00006).toFixed(3)}</TableCell>
+                      <TableCell>{new Date(user.lastUsed).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <Badge variant={user.isBlocked ? "destructive" : "default"}>
+                          {user.isBlocked ? "Blocked" : "Active"}
+                        </Badge>
+                      </TableCell>
+                     <TableCell>
+  <div className="flex items-center space-x-2">
+    <select 
+      className="text-xs border rounded px-2 py-1"
+      defaultValue="free"
+      id={`plan-${user.userId}`}
+    >
+      <option value="free">Free (10K tokens)</option>      
+<option value="starter">Basic (100K tokens)</option>      
+<option value="pro">Pro (300K tokens)</option>      
+<option value="rad-plus">Rad Plus (1M tokens)</option>
+    </select>
+    
+    <Button
+      size="sm"
+      variant="default"
+      className="bg-green-600 hover:bg-green-700 text-white"
+      onClick={() => handleActivateUser(user.userId)}
+    >
+      <CheckCircle className="w-4 h-4 mr-1" />
+      Activate
+    </Button>
+    
+    <Button
+      size="sm"
+      variant="destructive"
+      onClick={() => handleBlockUser(user.userId, "block")}
+    >
+      <Ban className="w-4 h-4 mr-1" />
+      Block
+    </Button>
+  </div>
+</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
