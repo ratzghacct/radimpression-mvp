@@ -237,3 +237,11 @@ export const updateUserPlan = (userId: string, plan: string): void => {
     console.log(`User ${userId} not found for plan update`)
   }
 }
+// ADD THESE MISSING FUNCTIONS:
+export const setUserPlan = (userId: string, plan: string): void => {
+  updateUserPlan(userId, plan)
+}
+
+export const changePlan = (userId: string, newPlan: string): void => {
+  updateUserPlan(userId, newPlan)
+}
