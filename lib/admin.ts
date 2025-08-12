@@ -1,6 +1,10 @@
-export const ADMIN_EMAILS = ["your-actual-email@gmail.com", "demo@radimpression.com"]
+const ADMIN_EMAILS = [
+  "admin@radimpression.com",
+  "support@radimpression.com",
+  // Add your admin emails here
+]
 
-export const isAdmin = (email: string | null | undefined): boolean => {
+export function isAdmin(email?: string | null): boolean {
   if (!email) return false
   return ADMIN_EMAILS.includes(email.toLowerCase())
 }
@@ -28,22 +32,36 @@ export interface TokenUsage {
   cost: number
 }
 
-export const OPENAI_PRICING = {
-  "gpt-4": {
-    input: 0.03 / 1000,
-    output: 0.06 / 1000,
-  },
-  "gpt-4o": {
-    input: 0.0025 / 1000,
-    output: 0.01 / 1000,
-  },
-  "gpt-3.5-turbo": {
-    input: 0.001 / 1000,
-    output: 0.002 / 1000,
-  },
+export function calculateCost(tokens: number): number {
+  // OpenAI GPT-4 pricing: $0.03 per 1K prompt tokens, $0.06 per 1K completion tokens
+  // Using average of $0.045 per 1K tokens for estimation
+  return (tokens / 1000) * 0.045
 }
 
-export const calculateCost = (usage: TokenUsage, model = "gpt-4o"): number => {
-  const pricing = OPENAI_PRICING[model as keyof typeof OPENAI_PRICING] || OPENAI_PRICING["gpt-4o"]
-  return usage.promptTokens * pricing.input + usage.completionTokens * pricing.output
+export function formatTokens(tokens: number): string {
+  if (tokens >= 1000000) {
+    return `${(tokens / 1000000).toFixed(1)}M`
+  } else if (tokens >= 1000) {
+    return `${(tokens / 1000).toFixed(1)}K`
+  }
+  return tokens.toString()
+}
+
+export function getPlanLimits() {
+  return {
+    free: 10000,
+    basic: 50000,
+    pro: 200000,
+    "rad-plus": 1000000,
+  }
+}
+
+export function getPlanName(planId: string): string {
+  const names: Record<string, string> = {
+    free: "Free Plan",
+    basic: "Basic Plan",
+    pro: "Pro Plan",
+    "rad-plus": "Rad Plus Plan",
+  }
+  return names[planId] || "Unknown Plan"
 }
