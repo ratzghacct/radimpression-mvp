@@ -1,7 +1,7 @@
-import { type UserUsage, type TokenUsage, calculateCost } from "./admin"
+import type { UserUsage, TokenUsage } from "./admin"
 
 // In-memory storage for demo (replace with database in production)
-let userUsageData: Record<string, UserUsage> = {}
+const userUsage = new Map<string, { tokens: number; plan: string; blocked: boolean }>()
 let isInitialized = false
 
 // Initialize demo data only once
@@ -12,67 +12,30 @@ const initializeDemoData = () => {
   }
 
   console.log("Initializing demo data for the first time...")
-  
-  userUsageData = {
-    // Demo user starts with 0 usage
-    "demo-user": {
-      userId: "demo-user",
-      email: "demo@radimpression.com",
-      displayName: "Dr. Demo User",
-      totalTokensUsed: 0,
-      totalImpressions: 0,
-      isBlocked: false,
-      lastUsed: new Date(),
-      createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
-      tokensToday: 0,
-      impressionsToday: 0,
-      lastResetDate: new Date(),
-      plan: "free",
-    },
-    // Other demo users with existing data
-    "user-2": {
-      userId: "user-2",
-      email: "dr.smith@hospital.com",
-      displayName: "Dr. Sarah Smith",
-      totalTokensUsed: 85000,
-      totalImpressions: 67,
-      isBlocked: false,
-      lastUsed: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
-      tokensToday: 5670,
-      impressionsToday: 8,
-      lastResetDate: new Date(),
-      plan: "basic",
-    },
-    "user-3": {
-      userId: "user-3",
-      email: "dr.johnson@clinic.org",
-      displayName: "Dr. Michael Johnson",
-      totalTokensUsed: 310000,
-      totalImpressions: 134,
-      isBlocked: true,
-      lastUsed: new Date(Date.now() - 24 * 60 * 60 * 1000),
-      createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-      tokensToday: 0,
-      impressionsToday: 0,
-      lastResetDate: new Date(),
-      plan: "pro",
-    },
-    "user-4": {
-      userId: "user-4",
-      email: "dr.wilson@medical.edu",
-      displayName: "Dr. Emily Wilson",
-      totalTokensUsed: 750000,
-      totalImpressions: 450,
-      isBlocked: false,
-      lastUsed: new Date(Date.now() - 30 * 60 * 1000),
-      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-      tokensToday: 3420,
-      impressionsToday: 5,
-      lastResetDate: new Date(),
-      plan: "rad-plus",
-    },
-  }
+
+  userUsage.set("demo-user", {
+    tokens: 0,
+    plan: "free",
+    blocked: false,
+  })
+
+  userUsage.set("user-2", {
+    tokens: 85000,
+    plan: "basic",
+    blocked: false,
+  })
+
+  userUsage.set("user-3", {
+    tokens: 310000,
+    plan: "pro",
+    blocked: true,
+  })
+
+  userUsage.set("user-4", {
+    tokens: 750000,
+    plan: "rad-plus",
+    blocked: false,
+  })
 
   isInitialized = true
   console.log("Demo data initialized successfully")
@@ -94,78 +57,55 @@ export const trackTokenUsage = async (
   const today = now.toDateString()
 
   // Make sure user exists in our data
-  if (!userUsageData[userId]) {
+  if (!userUsage.has(userId)) {
     console.log(`Creating new user entry for ${userId}`)
-    userUsageData[userId] = {
-      userId,
-      email,
-      displayName,
-      totalTokensUsed: 0,
-      totalImpressions: 0,
-      isBlocked: false,
-      lastUsed: now,
-      createdAt: now,
-      tokensToday: 0,
-      impressionsToday: 0,
-      lastResetDate: now,
+    userUsage.set(userId, {
+      tokens: 0,
       plan: "free",
-    }
+      blocked: false,
+    })
   }
 
-  const user = userUsageData[userId]
-
-  // Reset daily counters if new day
-  if (user.lastResetDate.toDateString() !== today) {
-    user.tokensToday = 0
-    user.impressionsToday = 0
-    user.lastResetDate = now
-  }
+  const user = userUsage.get(userId)!
 
   // Update usage
-  const previousTokens = user.totalTokensUsed
-  user.totalTokensUsed += tokenUsage.totalTokens
-  user.totalImpressions += 1
-  user.tokensToday += tokenUsage.totalTokens
-  user.impressionsToday += 1
-  user.lastUsed = now
+  user.tokens += tokenUsage.totalTokens
 
   console.log(`Token usage tracked for ${email}:`, {
-    previousTokens,
+    previousTokens: user.tokens - tokenUsage.totalTokens,
     newTokens: tokenUsage.totalTokens,
-    totalTokens: user.totalTokensUsed,
-    totalImpressions: user.totalImpressions,
+    totalTokens: user.tokens,
   })
 
   return user
 }
 
 export const isUserBlocked = (userId: string): boolean => {
-  return blockedUsers.has(userId) || userUsageData[userId]?.isBlocked || false
+  return blockedUsers.has(userId) || userUsage.get(userId)?.blocked || false
 }
 
 export const blockUser = (userId: string): void => {
   blockedUsers.add(userId)
-  if (userUsageData[userId]) {
-    userUsageData[userId].isBlocked = true
+  const user = userUsage.get(userId)
+  if (user) {
+    user.blocked = true
   }
   console.log(`User ${userId} blocked`)
 }
 
 export const unblockUser = (userId: string): void => {
   blockedUsers.delete(userId)
-  if (userUsageData[userId]) {
-    userUsageData[userId].isBlocked = false
+  const user = userUsage.get(userId)
+  if (user) {
+    user.blocked = false
   }
   console.log(`User ${userId} unblocked`)
 }
 
 export const resetUserUsage = (userId: string): void => {
-  if (userUsageData[userId]) {
-    userUsageData[userId].totalTokensUsed = 0
-    userUsageData[userId].totalImpressions = 0
-    userUsageData[userId].tokensToday = 0
-    userUsageData[userId].impressionsToday = 0
-    userUsageData[userId].lastResetDate = new Date()
+  const user = userUsage.get(userId)
+  if (user) {
+    user.tokens = 0
     console.log(`Usage reset for user ${userId}`)
   } else {
     console.log(`User ${userId} not found for reset`)
@@ -173,20 +113,50 @@ export const resetUserUsage = (userId: string): void => {
 }
 
 export const getAllUsers = (): UserUsage[] => {
-  return Object.values(userUsageData).sort((a, b) => new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime())
+  return Array.from(userUsage.entries())
+    .map(([userId, { tokens, plan, blocked }]) => ({
+      userId,
+      email: "",
+      displayName: "",
+      totalTokensUsed: tokens,
+      totalImpressions: 0,
+      isBlocked: blocked,
+      lastUsed: new Date(),
+      createdAt: new Date(),
+      tokensToday: 0,
+      impressionsToday: 0,
+      lastResetDate: new Date(),
+      plan: plan,
+    }))
+    .sort((a, b) => new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime())
 }
 
 export const getUserUsage = (userId: string): UserUsage | null => {
-  const user = userUsageData[userId]
+  const user = userUsage.get(userId)
   if (user) {
     console.log(`Getting usage for ${userId}:`, {
-      totalTokens: user.totalTokensUsed,
-      totalImpressions: user.totalImpressions,
+      totalTokens: user.tokens,
+      totalImpressions: 0,
     })
   } else {
     console.log(`User ${userId} not found in usage data`)
   }
-  return user || null
+  return user
+    ? {
+        userId,
+        email: "",
+        displayName: "",
+        totalTokensUsed: user.tokens,
+        totalImpressions: 0,
+        isBlocked: user.blocked,
+        lastUsed: new Date(),
+        createdAt: new Date(),
+        tokensToday: 0,
+        impressionsToday: 0,
+        lastResetDate: new Date(),
+        plan: user.plan,
+      }
+    : null
 }
 
 // History tracking
@@ -230,18 +200,36 @@ export const addToHistory = (
 }
 
 export const updateUserPlan = (userId: string, plan: string): void => {
-  if (userUsageData[userId]) {
-    userUsageData[userId].plan = plan
+  const current = userUsage.get(userId)
+  if (current) {
+    userUsage.set(userId, {
+      ...current,
+      plan,
+    })
     console.log(`User ${userId} plan updated to ${plan}`)
   } else {
     console.log(`User ${userId} not found for plan update`)
   }
 }
-// ADD THESE MISSING FUNCTIONS:
+
 export const setUserPlan = (userId: string, plan: string): void => {
   updateUserPlan(userId, plan)
 }
 
 export const changePlan = (userId: string, newPlan: string): void => {
   updateUserPlan(userId, newPlan)
+}
+
+export const canUserGenerate = (userId: string): boolean => {
+  const usage = userUsage.get(userId)
+  if (usage?.blocked) return false
+
+  const limits = {
+    free: 10,
+    basic: 100,
+    pro: 1000,
+    premium: 10000,
+  }
+
+  return usage?.tokens < (limits[usage.plan as keyof typeof limits] || 10)
 }

@@ -1,53 +1,23 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
+import { getUserUsage } from "@/lib/usage-tracker"
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const email = searchParams.get("email")
+    const userId = request.nextUrl.searchParams.get("userId")
 
-    if (!email) {
-      return NextResponse.json({ error: "Email is required" }, { status: 400 })
+    if (!userId) {
+      return NextResponse.json({ error: "User ID required" }, { status: 400 })
     }
 
-    const { data, error } = await supabase
-      .from("users")
-      .select("tokens_used, tokens_limit, plan")
-      .eq("email", email)
-      .single()
+    const usage = getUserUsage(userId)
 
-    if (error) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
-
-    return NextResponse.json(data)
+    return NextResponse.json({
+      tokens: usage.tokens,
+      plan: usage.plan,
+      blocked: usage.blocked,
+    })
   } catch (error) {
     console.error("Error fetching user usage:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const { email, tokensUsed } = await request.json()
-
-    if (!email || tokensUsed === undefined) {
-      return NextResponse.json({ error: "Email and tokensUsed are required" }, { status: 400 })
-    }
-
-    const { error } = await supabase.from("users").upsert({
-      email,
-      tokens_used: tokensUsed,
-      updated_at: new Date().toISOString(),
-    })
-
-    if (error) {
-      throw error
-    }
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error("Error updating user usage:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to fetch usage" }, { status: 500 })
   }
 }

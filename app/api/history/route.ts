@@ -1,57 +1,54 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
+
+// Mock history data - in production this would come from your database
+const impressionHistory = new Map<string, any[]>()
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const email = searchParams.get("email")
+    const userId = request.nextUrl.searchParams.get("userId")
 
-    if (!email) {
-      return NextResponse.json({ error: "Email is required" }, { status: 400 })
+    if (!userId) {
+      return NextResponse.json({ error: "User ID required" }, { status: 400 })
     }
 
-    const { data, error } = await supabase
-      .from("impressions")
-      .select("*")
-      .eq("user_email", email)
-      .order("created_at", { ascending: false })
-      .limit(50)
+    const history = impressionHistory.get(userId) || []
 
-    if (error) {
-      throw error
-    }
-
-    return NextResponse.json(data || [])
+    return NextResponse.json({ history })
   } catch (error) {
     console.error("Error fetching history:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to fetch history" }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, findings, impression, format, tokensUsed } = await request.json()
+    const { userId, impression, patientData, format } = await request.json()
 
-    if (!email || !findings || !impression) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    if (!userId) {
+      return NextResponse.json({ error: "User ID required" }, { status: 400 })
     }
 
-    const { error } = await supabase.from("impressions").insert({
-      user_email: email,
-      findings,
+    const historyItem = {
+      id: Date.now().toString(),
       impression,
-      format: format || "standard",
-      tokens_used: tokensUsed || 0,
-      created_at: new Date().toISOString(),
-    })
-
-    if (error) {
-      throw error
+      patientData,
+      format,
+      createdAt: new Date().toISOString(),
     }
+
+    const currentHistory = impressionHistory.get(userId) || []
+    currentHistory.unshift(historyItem)
+
+    // Keep only last 50 items
+    if (currentHistory.length > 50) {
+      currentHistory.splice(50)
+    }
+
+    impressionHistory.set(userId, currentHistory)
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Error saving impression:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Error saving to history:", error)
+    return NextResponse.json({ error: "Failed to save to history" }, { status: 500 })
   }
 }

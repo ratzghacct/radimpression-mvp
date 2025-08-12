@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { isAdmin } from "@/lib/admin"
-import { supabase } from "@/lib/supabase"
+import { setUserPlan } from "@/lib/usage-tracker"
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,28 +10,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized - Admin access required" }, { status: 403 })
     }
 
-    const tokenLimits = {
-      free: 10000,
-      basic: 50000,
-      pro: 200000,
-      "rad-plus": 1000000,
-    }
+    setUserPlan(userId, plan)
 
-    const { error } = await supabase
-      .from("users")
-      .update({
-        plan,
-        tokens_limit: tokenLimits[plan as keyof typeof tokenLimits] || 10000,
-      })
-      .eq("id", userId)
-
-    if (error) {
-      throw error
-    }
-
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+      success: true,
+      message: `User ${userId} plan updated to ${plan}`,
+    })
   } catch (error) {
-    console.error("Error updating user plan:", error)
-    return NextResponse.json({ error: "Failed to update user plan" }, { status: 500 })
+    console.error("Error updating plan:", error)
+    return NextResponse.json({ error: "Failed to update plan" }, { status: 500 })
   }
 }

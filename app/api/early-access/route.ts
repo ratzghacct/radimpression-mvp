@@ -1,5 +1,4 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,21 +8,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 })
     }
 
-    const { error } = await supabase.from("early_access").insert({
-      email,
-      created_at: new Date().toISOString(),
+    // Mock early access signup - in production this would save to your database
+    console.log("Early access signup:", email)
+
+    return NextResponse.json({
+      success: true,
+      message: "Successfully signed up for early access",
     })
-
-    if (error) {
-      if (error.code === "23505") {
-        return NextResponse.json({ error: "Email already registered" }, { status: 409 })
-      }
-      throw error
-    }
-
-    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Error registering for early access:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Error signing up for early access:", error)
+    return NextResponse.json({ error: "Failed to sign up" }, { status: 500 })
   }
 }

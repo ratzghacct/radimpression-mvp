@@ -1,29 +1,23 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { isAdmin } from "@/lib/admin"
-import { supabase } from "@/lib/supabase"
+import { blockUser } from "@/lib/usage-tracker"
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, action, adminEmail } = await request.json()
+    const { userId, adminEmail } = await request.json()
 
     if (!isAdmin(adminEmail)) {
       return NextResponse.json({ error: "Unauthorized - Admin access required" }, { status: 403 })
     }
 
-    const isBlocked = action === "block"
-
-    const { error } = await supabase.from("users").update({ is_blocked: isBlocked }).eq("id", userId)
-
-    if (error) {
-      throw error
-    }
+    blockUser(userId)
 
     return NextResponse.json({
       success: true,
-      message: `User ${action}ed successfully`,
+      message: `User ${userId} has been blocked`,
     })
   } catch (error) {
-    console.error(`Error ${request.json().then((data) => data.action)}ing user:`, error)
-    return NextResponse.json({ error: `Failed to ${request.json().then((data) => data.action)} user` }, { status: 500 })
+    console.error("Error blocking user:", error)
+    return NextResponse.json({ error: "Failed to block user" }, { status: 500 })
   }
 }
