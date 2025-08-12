@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { isAdmin } from "@/lib/admin"
-import { action } from "@/lib/action" // Declare the variable before using it
+import { supabase } from "@/lib/supabase"
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,15 +10,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized - Admin access required" }, { status: 403 })
     }
 
-    // Mock user blocking - replace with actual database update
-    console.log(`${action}ing user:`, userId)
+    const isBlocked = action === "block"
+
+    const { error } = await supabase.from("users").update({ is_blocked: isBlocked }).eq("id", userId)
+
+    if (error) {
+      throw error
+    }
 
     return NextResponse.json({
       success: true,
       message: `User ${action}ed successfully`,
     })
   } catch (error) {
-    console.error(`Error ${action}ing user:`, error)
-    return NextResponse.json({ error: `Failed to ${action} user` }, { status: 500 })
+    console.error(`Error ${request.json().then((data) => data.action)}ing user:`, error)
+    return NextResponse.json({ error: `Failed to ${request.json().then((data) => data.action)} user` }, { status: 500 })
   }
 }

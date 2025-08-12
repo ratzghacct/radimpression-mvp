@@ -1,11 +1,10 @@
-import { Loader2 } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export default function Loading() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center">
-      <div className="text-center">
-        <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-        <p className="text-gray-600">Loading payment confirmation...</p>
+    <div className="container mx-auto px-4 py-8">
+      <div className="max-w-md mx-auto">
+        <Skeleton className="h-64 w-full" />
       </div>
     </div>
   )

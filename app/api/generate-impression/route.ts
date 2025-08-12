@@ -14,8 +14,9 @@ export async function POST(request: NextRequest) {
     }
 
     let prompt = ""
+
     if (format === "formal") {
-      prompt = `As a radiologist, provide a formal medical impression based on these findings: ${findings}. Use professional medical terminology and structure.`
+      prompt = `As a radiologist, provide a formal medical impression based on these findings: ${findings}. Use professional medical terminology and structured format.`
     } else if (format === "short") {
       prompt = `Provide a concise medical impression for these findings: ${findings}. Keep it brief but accurate.`
     } else {
@@ -38,16 +39,19 @@ export async function POST(request: NextRequest) {
       temperature: 0.3,
     })
 
-    const impression = completion.choices[0]?.message?.content || "Unable to generate impression"
-    const tokensUsed = completion.usage?.total_tokens || 0
+    const impression = completion.choices[0]?.message?.content
+
+    if (!impression) {
+      return NextResponse.json({ error: "Failed to generate impression" }, { status: 500 })
+    }
 
     return NextResponse.json({
       impression,
-      tokensUsed,
+      tokensUsed: completion.usage?.total_tokens || 0,
       format,
     })
   } catch (error) {
     console.error("Error generating impression:", error)
-    return NextResponse.json({ error: "Failed to generate impression" }, { status: 500 })
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

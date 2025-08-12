@@ -1,30 +1,27 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Loader2, FileText, Zap, Clock } from "lucide-react"
-import { useAuth } from "@/contexts/auth-context"
-import { toast } from "@/hooks/use-toast"
+import { Loader2 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 export default function ImpressionPage() {
-  const [findings, setFindings] = useState("")
-  const [format, setFormat] = useState("standard")
-  const [impression, setImpression] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [tokensUsed, setTokensUsed] = useState(0)
   const { user } = useAuth()
-  const router = useRouter()
+  const { toast } = useToast()
+  const [findings, setFindings] = useState("")
+  const [impression, setImpression] = useState("")
+  const [format, setFormat] = useState("standard")
+  const [loading, setLoading] = useState(false)
 
-  const handleGenerate = async () => {
+  const generateImpression = async () => {
     if (!findings.trim()) {
       toast({
         title: "Error",
-        description: "Please enter your findings",
+        description: "Please enter your findings first.",
         variant: "destructive",
       })
       return
@@ -37,25 +34,46 @@ export default function ImpressionPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ findings, format }),
+        body: JSON.stringify({
+          findings,
+          format,
+        }),
       })
 
+      const data = await response.json()
+
       if (!response.ok) {
-        throw new Error("Failed to generate impression")
+        throw new Error(data.error || "Failed to generate impression")
       }
 
-      const data = await response.json()
       setImpression(data.impression)
-      setTokensUsed(data.tokensUsed)
+
+      // Save to history
+      if (user?.email) {
+        await fetch("/api/history", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: user.email,
+            findings,
+            impression: data.impression,
+            format,
+            tokensUsed: data.tokensUsed,
+          }),
+        })
+      }
 
       toast({
         title: "Success",
-        description: "Impression generated successfully",
+        description: "Impression generated successfully!",
       })
     } catch (error) {
+      console.error("Error:", error)
       toast({
         title: "Error",
-        description: "Failed to generate impression",
+        description: error instanceof Error ? error.message : "Failed to generate impression",
         variant: "destructive",
       })
     } finally {
@@ -63,124 +81,69 @@ export default function ImpressionPage() {
     }
   }
 
-  const handleClear = () => {
-    setFindings("")
-    setImpression("")
-    setTokensUsed(0)
-  }
-
   if (!user) {
-    router.push("/login")
-    return null
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Card>
+          <CardContent className="p-6">
+            <p>Please log in to generate impressions.</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center space-x-4">
-            <Button variant="ghost" onClick={() => router.push("/")} className="text-gray-600 hover:text-gray-900">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Home
-            </Button>
+    <div className="container mx-auto px-4 py-8">
+      <div className="max-w-4xl mx-auto space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Generate Medical Impression</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Generate Impression</h1>
-              <p className="text-gray-600">AI-powered medical impression generation</p>
+              <label className="block text-sm font-medium mb-2">Format</label>
+              <Select value={format} onValueChange={setFormat}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="standard">Standard</SelectItem>
+                  <SelectItem value="formal">Formal</SelectItem>
+                  <SelectItem value="short">Short</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          </div>
-          <Badge variant="secondary" className="flex items-center space-x-1">
-            <Zap className="w-3 h-3" />
-            <span>{tokensUsed} tokens used</span>
-          </Badge>
-        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Input Section */}
-          <Card className="shadow-lg border-0 bg-white/95 backdrop-blur">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <FileText className="w-5 h-5" />
-                <span>Clinical Findings</span>
-              </CardTitle>
-              <CardDescription>Enter the imaging findings or clinical observations</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Format</label>
-                <Select value={format} onValueChange={setFormat}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select format" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="standard">Standard</SelectItem>
-                    <SelectItem value="formal">Formal</SelectItem>
-                    <SelectItem value="short">Short</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Findings</label>
+              <Textarea
+                value={findings}
+                onChange={(e) => setFindings(e.target.value)}
+                placeholder="Enter your imaging findings here..."
+                rows={6}
+              />
+            </div>
 
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Findings</label>
-                <Textarea
-                  placeholder="Enter your clinical findings here..."
-                  value={findings}
-                  onChange={(e) => setFindings(e.target.value)}
-                  rows={8}
-                  className="resize-none"
-                />
-              </div>
-
-              <div className="flex space-x-2">
-                <Button onClick={handleGenerate} disabled={loading || !findings.trim()} className="flex-1">
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="w-4 h-4 mr-2" />
-                      Generate Impression
-                    </>
-                  )}
-                </Button>
-                <Button variant="outline" onClick={handleClear} disabled={loading}>
-                  Clear
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Output Section */}
-          <Card className="shadow-lg border-0 bg-white/95 backdrop-blur">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Clock className="w-5 h-5" />
-                <span>Generated Impression</span>
-              </CardTitle>
-              <CardDescription>AI-generated medical impression based on your findings</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {impression ? (
-                <div className="space-y-4">
-                  <div className="p-4 bg-gray-50 rounded-lg border">
-                    <p className="text-gray-800 whitespace-pre-wrap">{impression}</p>
-                  </div>
-                  <div className="flex items-center justify-between text-sm text-gray-500">
-                    <span>Format: {format}</span>
-                    <span>Tokens: {tokensUsed}</span>
-                  </div>
-                </div>
+            <Button onClick={generateImpression} disabled={loading} className="w-full">
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating...
+                </>
               ) : (
-                <div className="text-center py-12 text-gray-500">
-                  <FileText className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                  <p>Your generated impression will appear here</p>
-                </div>
+                "Generate Impression"
               )}
-            </CardContent>
-          </Card>
-        </div>
+            </Button>
+
+            {impression && (
+              <div>
+                <label className="block text-sm font-medium mb-2">Generated Impression</label>
+                <Textarea value={impression} readOnly rows={8} className="bg-gray-50" />
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

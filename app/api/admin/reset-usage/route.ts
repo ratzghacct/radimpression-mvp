@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { isAdmin } from "@/lib/admin"
+import { supabase } from "@/lib/supabase"
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,15 +10,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized - Admin access required" }, { status: 403 })
     }
 
-    // Mock usage reset - replace with actual database update
-    console.log("Resetting usage for user:", userId)
+    const { error } = await supabase.from("users").update({ tokens_used: 0 }).eq("id", userId)
 
-    return NextResponse.json({
-      success: true,
-      message: "User usage reset successfully",
-    })
+    if (error) {
+      throw error
+    }
+
+    return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Error resetting user usage:", error)
-    return NextResponse.json({ error: "Failed to reset usage" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to reset user usage" }, { status: 500 })
   }
 }
