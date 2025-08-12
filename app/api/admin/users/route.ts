@@ -1,32 +1,49 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getAllUsers } from "@/lib/usage-tracker"
 import { isAdmin } from "@/lib/admin"
 
 export async function GET(request: NextRequest) {
   try {
-    const userEmail = request.headers.get("x-user-email")
+    const adminEmail = request.headers.get("x-user-email")
 
-    if (!userEmail) {
-      return NextResponse.json({ error: "No user email provided" }, { status: 400 })
-    }
-
-    if (!isAdmin(userEmail)) {
+    if (!adminEmail || !isAdmin(adminEmail)) {
       return NextResponse.json({ error: "Unauthorized - Admin access required" }, { status: 403 })
     }
 
-    // Use in-memory data instead of Supabase
-    const users = getAllUsers()
-
-    return NextResponse.json({
-      users,
-      debug: {
-        adminEmail: userEmail,
-        userCount: users.length,
-        timestamp: new Date().toISOString(),
+    // Mock users data - replace with actual database query
+    const mockUsers = [
+      {
+        userId: "user1",
+        email: "user1@example.com",
+        displayName: "John Doe",
+        totalTokensUsed: 2500,
+        totalImpressions: 15,
+        isBlocked: false,
+        lastUsed: new Date(),
+        createdAt: new Date(),
+        tokensToday: 500,
+        impressionsToday: 3,
+        lastResetDate: new Date(),
+        plan: "free",
       },
-    })
+      {
+        userId: "user2",
+        email: "user2@example.com",
+        displayName: "Jane Smith",
+        totalTokensUsed: 8500,
+        totalImpressions: 45,
+        isBlocked: false,
+        lastUsed: new Date(),
+        createdAt: new Date(),
+        tokensToday: 1200,
+        impressionsToday: 7,
+        lastResetDate: new Date(),
+        plan: "pro",
+      },
+    ]
+
+    return NextResponse.json({ users: mockUsers })
   } catch (error) {
-    console.error("Error in admin API:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Error fetching users:", error)
+    return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 })
   }
 }

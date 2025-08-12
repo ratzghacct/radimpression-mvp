@@ -9,6 +9,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
+  updateProfile,
 } from "firebase/auth"
 import { auth } from "@/lib/firebase"
 
@@ -16,7 +17,7 @@ interface AuthContextType {
   user: User | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string) => Promise<void>
+  signUp: (email: string, password: string, displayName: string) => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -39,15 +40,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await signInWithEmailAndPassword(auth, email, password)
   }
 
-  const signUp = async (email: string, password: string) => {
-    await createUserWithEmailAndPassword(auth, email, password)
+  const signUp = async (email: string, password: string, displayName: string) => {
+    const { user } = await createUserWithEmailAndPassword(auth, email, password)
+    await updateProfile(user, { displayName })
   }
 
   const logout = async () => {
     await signOut(auth)
   }
 
-  return <AuthContext.Provider value={{ user, loading, signIn, signUp, logout }}>{children}</AuthContext.Provider>
+  const value = {
+    user,
+    loading,
+    signIn,
+    signUp,
+    logout,
+  }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {
