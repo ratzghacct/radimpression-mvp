@@ -1,60 +1,57 @@
 import { supabase } from "./supabase"
 
+export interface UserData {
+  id: string
+  email: string
+  plan: "free" | "pro" | "premium"
+  tokens_used: number
+  tokens_limit: number
+  is_blocked: boolean
+  created_at: string
+}
+
 export async function isAdmin(email: string): Promise<boolean> {
+  const adminEmails = ["admin@radimpression.com", "support@radimpression.com"]
+  return adminEmails.includes(email.toLowerCase())
+}
+
+export function calculateCost(plan: string, tokens: number): number {
+  const rates = {
+    free: 0,
+    pro: 0.01,
+    premium: 0.005,
+  }
+  return (rates[plan as keyof typeof rates] || 0) * tokens
+}
+
+export async function getUserData(email: string): Promise<UserData | null> {
   try {
-    const { data, error } = await supabase.from("admin_users").select("email").eq("email", email).single()
+    const { data, error } = await supabase.from("users").select("*").eq("email", email).single()
 
     if (error) {
-      console.error("Error checking admin status:", error)
+      console.error("Error fetching user data:", error)
+      return null
+    }
+
+    return data
+  } catch (error) {
+    console.error("Error in getUserData:", error)
+    return null
+  }
+}
+
+export async function updateUserTokens(email: string, tokensUsed: number): Promise<boolean> {
+  try {
+    const { error } = await supabase.from("users").update({ tokens_used: tokensUsed }).eq("email", email)
+
+    if (error) {
+      console.error("Error updating user tokens:", error)
       return false
     }
 
-    return !!data
+    return true
   } catch (error) {
-    console.error("Error in isAdmin:", error)
+    console.error("Error in updateUserTokens:", error)
     return false
-  }
-}
-
-export function calculateCost(format: string): number {
-  switch (format) {
-    case "formal":
-      return 2
-    case "short":
-      return 1
-    default:
-      return 1
-  }
-}
-
-export async function getUserUsage(userId: string) {
-  try {
-    const { data, error } = await supabase.from("user_usage").select("*").eq("user_id", userId).single()
-
-    if (error && error.code !== "PGRST116") {
-      throw error
-    }
-
-    return data || { user_id: userId, tokens_used: 0, plan: "free" }
-  } catch (error) {
-    console.error("Error getting user usage:", error)
-    return { user_id: userId, tokens_used: 0, plan: "free" }
-  }
-}
-
-export async function updateUserUsage(userId: string, tokensUsed: number) {
-  try {
-    const { error } = await supabase.from("user_usage").upsert({
-      user_id: userId,
-      tokens_used: tokensUsed,
-      updated_at: new Date().toISOString(),
-    })
-
-    if (error) {
-      throw error
-    }
-  } catch (error) {
-    console.error("Error updating user usage:", error)
-    throw error
   }
 }

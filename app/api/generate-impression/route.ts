@@ -1,86 +1,64 @@
 import { type NextRequest, NextResponse } from "next/server"
-import OpenAI from "openai"
-import { calculateCost, getUserUsage, updateUserUsage } from "@/lib/admin"
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
 
 export async function POST(request: NextRequest) {
   try {
-    const { findings, format = "standard", userId } = await request.json()
+    const { findings, format = "standard" } = await request.json()
 
     if (!findings) {
       return NextResponse.json({ error: "Findings are required" }, { status: 400 })
     }
 
-    if (!userId) {
-      return NextResponse.json({ error: "User ID is required" }, { status: 401 })
+    const openaiApiKey = process.env.OPENAI_API_KEY
+    if (!openaiApiKey) {
+      return NextResponse.json({ error: "OpenAI API key not configured" }, { status: 500 })
     }
 
-    // Check user usage and limits
-    const userUsage = await getUserUsage(userId)
-    const cost = calculateCost(format)
-
-    const limits = {
-      free: 10,
-      basic: 100,
-      premium: 1000,
-    }
-
-    if (userUsage.tokens_used + cost > limits[userUsage.plan as keyof typeof limits]) {
-      return NextResponse.json({ error: "Usage limit exceeded" }, { status: 403 })
-    }
-
-    // Generate prompt based on format
     let prompt = ""
-    switch (format) {
-      case "formal":
-        prompt = `As a radiologist, provide a detailed, formal medical impression based on these findings: ${findings}. Use proper medical terminology and structure.`
-        break
-      case "short":
-        prompt = `Provide a concise medical impression for these findings: ${findings}. Keep it brief but accurate.`
-        break
-      default:
-        prompt = `Provide a professional medical impression based on these findings: ${findings}.`
+    if (format === "formal") {
+      prompt = `As a radiologist, provide a formal medical impression based on these findings: ${findings}. Use professional medical terminology and structured format.`
+    } else if (format === "short") {
+      prompt = `Provide a concise medical impression based on these findings: ${findings}. Keep it brief but accurate.`
+    } else {
+      prompt = `As a radiologist, provide a professional medical impression based on these findings: ${findings}`
     }
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an experienced radiologist providing medical impressions. Be accurate, professional, and use appropriate medical terminology.",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      max_tokens: format === "short" ? 150 : 500,
-      temperature: 0.3,
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${openaiApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4",
+        messages: [
+          {
+            role: "system",
+            content: "You are an experienced radiologist providing medical impressions based on imaging findings.",
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        max_tokens: 500,
+        temperature: 0.3,
+      }),
     })
 
-    const impression = completion.choices[0]?.message?.content
+    if (!response.ok) {
+      throw new Error(`OpenAI API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    const impression = data.choices[0]?.message?.content
 
     if (!impression) {
-      return NextResponse.json({ error: "Failed to generate impression" }, { status: 500 })
+      throw new Error("No impression generated")
     }
 
-    // Update user usage
-    await updateUserUsage(userId, userUsage.tokens_used + cost)
-
-    // Save to history (you can implement this)
-    // await saveToHistory(userId, findings, impression, format)
-
-    return NextResponse.json({
-      impression,
-      tokensUsed: cost,
-      remainingTokens: limits[userUsage.plan as keyof typeof limits] - (userUsage.tokens_used + cost),
-    })
+    return NextResponse.json({ impression })
   } catch (error) {
     console.error("Error generating impression:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to generate impression" }, { status: 500 })
   }
 }

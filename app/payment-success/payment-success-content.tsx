@@ -18,30 +18,27 @@ export default function PaymentSuccessContent() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-2xl">
-      <Card className="text-center">
-        <CardHeader>
-          <div className="mx-auto mb-4">
-            <CheckCircle className="h-16 w-16 text-green-500" />
+      <Card>
+        <CardHeader className="text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+            <CheckCircle className="h-6 w-6 text-green-600" />
           </div>
-          <CardTitle className="text-2xl text-green-600">Payment Successful!</CardTitle>
+          <CardTitle className="text-2xl">Payment Successful!</CardTitle>
           <CardDescription>Thank you for your purchase. Your account has been upgraded.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {sessionId && <p className="text-sm text-muted-foreground">Session ID: {sessionId}</p>}
-          <div className="space-y-2">
-            <p>Your premium features are now active:</p>
-            <ul className="text-sm text-muted-foreground space-y-1">
-              <li>• Increased token limits</li>
-              <li>• Priority support</li>
-              <li>• Advanced formatting options</li>
-            </ul>
-          </div>
-          <div className="flex gap-4 justify-center">
+          {sessionId && (
+            <div className="p-4 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground">Session ID:</p>
+              <p className="font-mono text-sm">{sessionId}</p>
+            </div>
+          )}
+          <div className="flex flex-col gap-2">
             <Button asChild>
-              <Link href="/impression">Start Generating</Link>
+              <Link href="/impression">Start Generating Impressions</Link>
             </Button>
             <Button variant="outline" asChild>
-              <Link href="/">Back to Home</Link>
+              <Link href="/">Return to Home</Link>
             </Button>
           </div>
         </CardContent>

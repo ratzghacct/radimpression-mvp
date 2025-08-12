@@ -1,38 +1,30 @@
 "use client"
 
 import { useState } from "react"
+import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, Copy, Check } from "lucide-react"
-import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
+import { TokenUsageWidget } from "@/components/token-usage-widget"
 
 export default function ImpressionPage() {
-  const [findings, setFindings] = useState("")
-  const [format, setFormat] = useState("standard")
-  const [impression, setImpression] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [copied, setCopied] = useState(false)
   const { user } = useAuth()
   const { toast } = useToast()
+  const [findings, setFindings] = useState("")
+  const [impression, setImpression] = useState("")
+  const [format, setFormat] = useState("standard")
+  const [loading, setLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const handleGenerate = async () => {
     if (!findings.trim()) {
       toast({
         title: "Error",
         description: "Please enter your findings first.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!user) {
-      toast({
-        title: "Error",
-        description: "Please log in to generate impressions.",
         variant: "destructive",
       })
       return
@@ -45,11 +37,7 @@ export default function ImpressionPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          findings,
-          format,
-          userId: user.uid,
-        }),
+        body: JSON.stringify({ findings, format }),
       })
 
       const data = await response.json()
@@ -59,12 +47,29 @@ export default function ImpressionPage() {
       }
 
       setImpression(data.impression)
+
+      // Save to history
+      if (user?.email) {
+        await fetch("/api/history", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: user.email,
+            findings,
+            impression: data.impression,
+            format,
+          }),
+        })
+      }
+
       toast({
         title: "Success",
         description: "Impression generated successfully!",
       })
     } catch (error) {
-      console.error("Error:", error)
+      console.error("Error generating impression:", error)
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to generate impression",
@@ -93,43 +98,57 @@ export default function ImpressionPage() {
     }
   }
 
+  if (!user) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-center text-muted-foreground">Please log in to generate impressions.</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">Generate Medical Impression</h1>
         <p className="text-muted-foreground">
-          Enter your radiological findings and get an AI-generated professional impression.
+          Enter your imaging findings to generate a professional medical impression.
         </p>
+      </div>
+
+      <div className="mb-6">
+        <TokenUsageWidget />
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Input Findings</CardTitle>
-            <CardDescription>Enter the radiological findings you want to generate an impression for.</CardDescription>
+            <CardTitle>Imaging Findings</CardTitle>
+            <CardDescription>Enter the radiological findings from your imaging study</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Textarea
-              placeholder="Enter your radiological findings here..."
-              value={findings}
-              onChange={(e) => setFindings(e.target.value)}
-              className="min-h-[200px]"
-            />
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Format</label>
+            <div>
+              <label className="text-sm font-medium mb-2 block">Format</label>
               <Select value={format} onValueChange={setFormat}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="standard">Standard</SelectItem>
-                  <SelectItem value="formal">Formal (2 tokens)</SelectItem>
-                  <SelectItem value="short">Short (1 token)</SelectItem>
+                  <SelectItem value="formal">Formal</SelectItem>
+                  <SelectItem value="short">Short</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-
+            <Textarea
+              placeholder="Enter your imaging findings here..."
+              value={findings}
+              onChange={(e) => setFindings(e.target.value)}
+              className="min-h-[200px]"
+            />
             <Button onClick={handleGenerate} disabled={loading || !findings.trim()} className="w-full">
               {loading ? (
                 <>
@@ -146,14 +165,14 @@ export default function ImpressionPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              Generated Impression
+              Medical Impression
               {impression && (
                 <Button variant="outline" size="sm" onClick={handleCopy} className="ml-2 bg-transparent">
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 </Button>
               )}
             </CardTitle>
-            <CardDescription>Your AI-generated medical impression will appear here.</CardDescription>
+            <CardDescription>AI-generated medical impression based on your findings</CardDescription>
           </CardHeader>
           <CardContent>
             {impression ? (
@@ -167,7 +186,7 @@ export default function ImpressionPage() {
               </div>
             ) : (
               <div className="flex items-center justify-center h-[200px] text-muted-foreground">
-                Enter findings and click generate to see your impression here.
+                Your generated impression will appear here
               </div>
             )}
           </CardContent>

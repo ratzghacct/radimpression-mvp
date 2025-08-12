@@ -10,22 +10,23 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if email already exists
-    const { data: existing } = await supabase.from("early_access").select("email").eq("email", email).single()
+    const { data: existingUser } = await supabase.from("early_access").select("email").eq("email", email).single()
 
-    if (existing) {
-      return NextResponse.json({ error: "Email already registered" }, { status: 409 })
+    if (existingUser) {
+      return NextResponse.json({ error: "Email already registered" }, { status: 400 })
     }
 
     // Insert new email
     const { error } = await supabase.from("early_access").insert({ email, created_at: new Date().toISOString() })
 
     if (error) {
-      throw error
+      console.error("Error saving email:", error)
+      return NextResponse.json({ error: "Failed to save email" }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, message: "Successfully registered for early access" })
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Error registering for early access:", error)
+    console.error("Error in early-access API:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
