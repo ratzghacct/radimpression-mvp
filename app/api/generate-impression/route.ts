@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import OpenAI from "openai"
+import { calculateCost, getUserUsage, updateUserUsage } from "@/lib/admin"
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -7,25 +8,41 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
-    const { findings, userId, userEmail, userName, format = "formal" } = await request.json()
+    const { findings, format = "standard", userId } = await request.json()
 
-    if (!findings || !userId) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    if (!findings) {
+      return NextResponse.json({ error: "Findings are required" }, { status: 400 })
     }
 
-    // Create format-specific prompts
-    const prompts = {
-      formal: `You are an expert radiologist. Based on the following radiology findings, generate a professional, detailed impression suitable for a radiology report. The impression should be comprehensive, well-structured, and follow standard radiology reporting conventions.
+    if (!userId) {
+      return NextResponse.json({ error: "User ID is required" }, { status: 401 })
+    }
 
-Findings: ${findings}
+    // Check user usage and limits
+    const userUsage = await getUserUsage(userId)
+    const cost = calculateCost(format)
 
-Generate a formal radiology impression:`,
+    const limits = {
+      free: 10,
+      basic: 100,
+      premium: 1000,
+    }
 
-      short: `You are an expert radiologist. Based on the following radiology findings, generate a concise, minimal impression with only the core findings. Keep it brief and to the point.
+    if (userUsage.tokens_used + cost > limits[userUsage.plan as keyof typeof limits]) {
+      return NextResponse.json({ error: "Usage limit exceeded" }, { status: 403 })
+    }
 
-Findings: ${findings}
-
-Generate a short radiology impression:`,
+    // Generate prompt based on format
+    let prompt = ""
+    switch (format) {
+      case "formal":
+        prompt = `As a radiologist, provide a detailed, formal medical impression based on these findings: ${findings}. Use proper medical terminology and structure.`
+        break
+      case "short":
+        prompt = `Provide a concise medical impression for these findings: ${findings}. Keep it brief but accurate.`
+        break
+      default:
+        prompt = `Provide a professional medical impression based on these findings: ${findings}.`
     }
 
     const completion = await openai.chat.completions.create({
@@ -34,34 +51,36 @@ Generate a short radiology impression:`,
         {
           role: "system",
           content:
-            "You are an expert radiologist with years of experience in medical imaging interpretation. Generate professional radiology impressions based on the provided findings.",
+            "You are an experienced radiologist providing medical impressions. Be accurate, professional, and use appropriate medical terminology.",
         },
         {
           role: "user",
-          content: prompts[format as keyof typeof prompts] || prompts.formal,
+          content: prompt,
         },
       ],
-      max_tokens: format === "short" ? 200 : 500,
+      max_tokens: format === "short" ? 150 : 500,
       temperature: 0.3,
     })
 
-    const impression = completion.choices[0]?.message?.content || "Unable to generate impression"
+    const impression = completion.choices[0]?.message?.content
 
-    const tokenUsage = {
-      promptTokens: completion.usage?.prompt_tokens || 0,
-      completionTokens: completion.usage?.completion_tokens || 0,
-      totalTokens: completion.usage?.total_tokens || 0,
-      cost: ((completion.usage?.total_tokens || 0) * 0.03) / 1000,
-      format: format,
+    if (!impression) {
+      return NextResponse.json({ error: "Failed to generate impression" }, { status: 500 })
     }
+
+    // Update user usage
+    await updateUserUsage(userId, userUsage.tokens_used + cost)
+
+    // Save to history (you can implement this)
+    // await saveToHistory(userId, findings, impression, format)
 
     return NextResponse.json({
       impression,
-      tokenUsage,
-      model: "gpt-4",
+      tokensUsed: cost,
+      remainingTokens: limits[userUsage.plan as keyof typeof limits] - (userUsage.tokens_used + cost),
     })
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error generating impression:", error)
-    return NextResponse.json({ error: "Failed to generate impression" }, { status: 500 })
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

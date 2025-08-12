@@ -1,51 +1,59 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { supabase } from "@/lib/supabase"
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get("x-user-id")
+    const { searchParams } = new URL(request.url)
+    const userId = searchParams.get("userId")
 
     if (!userId) {
-      return NextResponse.json({ error: "User ID required" }, { status: 400 })
+      return NextResponse.json({ error: "User ID is required" }, { status: 400 })
     }
 
-    // Mock history data - replace with actual database query
-    const mockHistory = [
-      {
-        id: "1",
-        userId: userId,
-        findings:
-          "Chest X-ray shows clear lung fields bilaterally. No acute cardiopulmonary abnormalities. Heart size within normal limits.",
-        impression: "IMPRESSION: Normal chest X-ray. No acute cardiopulmonary process.",
-        tokenUsage: {
-          promptTokens: 45,
-          completionTokens: 25,
-          totalTokens: 70,
-          cost: 0.0021,
-          format: "formal",
-        },
-        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-        model: "gpt-4",
-      },
-      {
-        id: "2",
-        userId: userId,
-        findings: "CT abdomen shows mild hepatomegaly. No focal lesions identified.",
-        impression: "Mild hepatomegaly, otherwise unremarkable.",
-        tokenUsage: {
-          promptTokens: 35,
-          completionTokens: 15,
-          totalTokens: 50,
-          cost: 0.0015,
-          format: "short",
-        },
-        createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-        model: "gpt-4",
-      },
-    ]
+    const { data, error } = await supabase
+      .from("impression_history")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(50)
 
-    return NextResponse.json({ history: mockHistory })
+    if (error) {
+      throw error
+    }
+
+    return NextResponse.json({ history: data || [] })
   } catch (error) {
     console.error("Error fetching history:", error)
-    return NextResponse.json({ error: "Failed to fetch history" }, { status: 500 })
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const { userId, findings, impression, format } = await request.json()
+
+    if (!userId || !findings || !impression) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    }
+
+    const { data, error } = await supabase
+      .from("impression_history")
+      .insert({
+        user_id: userId,
+        findings,
+        impression,
+        format: format || "standard",
+        created_at: new Date().toISOString(),
+      })
+      .select()
+
+    if (error) {
+      throw error
+    }
+
+    return NextResponse.json({ success: true, data })
+  } catch (error) {
+    console.error("Error saving to history:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

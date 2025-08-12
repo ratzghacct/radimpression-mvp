@@ -1,67 +1,60 @@
-const ADMIN_EMAILS = [
-  "admin@radimpression.com",
-  "support@radimpression.com",
-  // Add your admin emails here
-]
+import { supabase } from "./supabase"
 
-export function isAdmin(email?: string | null): boolean {
-  if (!email) return false
-  return ADMIN_EMAILS.includes(email.toLowerCase())
-}
+export async function isAdmin(email: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.from("admin_users").select("email").eq("email", email).single()
 
-export interface UserUsage {
-  userId: string
-  email: string
-  displayName: string
-  totalTokensUsed: number
-  totalImpressions: number
-  isBlocked: boolean
-  lastUsed: Date
-  createdAt: Date
-  tokensToday: number
-  impressionsToday: number
-  lastResetDate: Date
-  plan?: string
-  tokenLimit?: number
-}
+    if (error) {
+      console.error("Error checking admin status:", error)
+      return false
+    }
 
-export interface TokenUsage {
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-  cost: number
-}
-
-export function calculateCost(tokens: number): number {
-  // OpenAI GPT-4 pricing: $0.03 per 1K prompt tokens, $0.06 per 1K completion tokens
-  // Using average of $0.045 per 1K tokens for estimation
-  return (tokens / 1000) * 0.045
-}
-
-export function formatTokens(tokens: number): string {
-  if (tokens >= 1000000) {
-    return `${(tokens / 1000000).toFixed(1)}M`
-  } else if (tokens >= 1000) {
-    return `${(tokens / 1000).toFixed(1)}K`
-  }
-  return tokens.toString()
-}
-
-export function getPlanLimits() {
-  return {
-    free: 10000,
-    basic: 50000,
-    pro: 200000,
-    "rad-plus": 1000000,
+    return !!data
+  } catch (error) {
+    console.error("Error in isAdmin:", error)
+    return false
   }
 }
 
-export function getPlanName(planId: string): string {
-  const names: Record<string, string> = {
-    free: "Free Plan",
-    basic: "Basic Plan",
-    pro: "Pro Plan",
-    "rad-plus": "Rad Plus Plan",
+export function calculateCost(format: string): number {
+  switch (format) {
+    case "formal":
+      return 2
+    case "short":
+      return 1
+    default:
+      return 1
   }
-  return names[planId] || "Unknown Plan"
+}
+
+export async function getUserUsage(userId: string) {
+  try {
+    const { data, error } = await supabase.from("user_usage").select("*").eq("user_id", userId).single()
+
+    if (error && error.code !== "PGRST116") {
+      throw error
+    }
+
+    return data || { user_id: userId, tokens_used: 0, plan: "free" }
+  } catch (error) {
+    console.error("Error getting user usage:", error)
+    return { user_id: userId, tokens_used: 0, plan: "free" }
+  }
+}
+
+export async function updateUserUsage(userId: string, tokensUsed: number) {
+  try {
+    const { error } = await supabase.from("user_usage").upsert({
+      user_id: userId,
+      tokens_used: tokensUsed,
+      updated_at: new Date().toISOString(),
+    })
+
+    if (error) {
+      throw error
+    }
+  } catch (error) {
+    console.error("Error updating user usage:", error)
+    throw error
+  }
 }

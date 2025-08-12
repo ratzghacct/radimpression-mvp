@@ -1,24 +1,30 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { getUserUsage } from "@/lib/admin"
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get("x-user-id")
+    const { searchParams } = new URL(request.url)
+    const userId = searchParams.get("userId")
 
     if (!userId) {
-      return NextResponse.json({ error: "User ID required" }, { status: 400 })
+      return NextResponse.json({ error: "User ID is required" }, { status: 400 })
     }
 
-    // Mock usage data - replace with actual database query
-    const mockUsage = {
-      used: Math.floor(Math.random() * 8000) + 1000,
-      limit: 10000,
-      plan: "free",
-      resetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    const usage = await getUserUsage(userId)
+
+    const limits = {
+      free: 10,
+      basic: 100,
+      premium: 1000,
     }
 
-    return NextResponse.json({ usage: mockUsage })
+    return NextResponse.json({
+      ...usage,
+      limit: limits[usage.plan as keyof typeof limits],
+      remaining: limits[usage.plan as keyof typeof limits] - usage.tokens_used,
+    })
   } catch (error) {
     console.error("Error fetching user usage:", error)
-    return NextResponse.json({ error: "Failed to fetch usage" }, { status: 500 })
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
