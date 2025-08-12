@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { createContext, useContext, useEffect, useState } from "react"
 import { type User, onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth"
 import { auth, googleProvider } from "@/lib/firebase"
@@ -21,7 +20,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check for demo user first
     const demoUser = localStorage.getItem("demo_user")
     if (demoUser) {
       try {
@@ -33,7 +31,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Then check Firebase auth
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user)
       setLoading(false)
@@ -44,7 +41,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = async () => {
     try {
-      // Clear any demo user
       localStorage.removeItem("demo_user")
       await signInWithPopup(auth, googleProvider)
     } catch (error) {
@@ -54,11 +50,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signInDemo = (demoUser: User) => {
-    // Ensure the demo user has all required fields
     const enhancedDemoUser = {
       ...demoUser,
-      uid: demoUser.uid || "demo-user", // Ensure uid is always present
-      id: demoUser.uid || "demo-user", // Add id as fallback
+      uid: demoUser.uid || "demo-user",
+      id: demoUser.uid || "demo-user",
     }
 
     localStorage.setItem("demo_user", JSON.stringify(enhancedDemoUser))
@@ -67,14 +62,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      // Clear demo user
       localStorage.removeItem("demo_user")
 
-      // Sign out from Firebase if authenticated
       if (auth.currentUser) {
         await signOut(auth)
       } else {
-        // Just clear the user state for demo mode
         setUser(null)
       }
     } catch (error) {

@@ -1,9 +1,4 @@
-// Admin configuration - PRODUCTION VERSION
-export const ADMIN_EMAILS = [
-  "your-actual-email@gmail.com", // ⚠️ REPLACE WITH YOUR REAL EMAIL
-  // Remove demo email for production:
-  "demo@radimpression.com",
-]
+export const ADMIN_EMAILS = ["your-actual-email@gmail.com", "demo@radimpression.com"]
 
 export const isAdmin = (email: string | null | undefined): boolean => {
   if (!email) return false
@@ -33,7 +28,6 @@ export interface TokenUsage {
   cost: number
 }
 
-// OpenAI pricing (as of 2024) - REAL PRICING
 export const OPENAI_PRICING = {
   "gpt-4": {
     input: 0.03 / 1000,

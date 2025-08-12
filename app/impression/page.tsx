@@ -10,7 +10,29 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
-import { Brain, ArrowLeft, Sparkles, Copy, RefreshCw, Activity, History, Clock, Search, CreditCard, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Undo, Redo, FileCheck, Zap } from 'lucide-react'
+import {
+  Brain,
+  ArrowLeft,
+  Sparkles,
+  Copy,
+  RefreshCw,
+  Activity,
+  History,
+  Clock,
+  Search,
+  CreditCard,
+  Bold,
+  Italic,
+  Underline,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlertTriangle,
+  Undo,
+  Redo,
+  FileCheck,
+  Zap,
+} from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { isAdmin } from "@/lib/admin"
 import { toast } from "@/hooks/use-toast"
@@ -44,7 +66,7 @@ export default function ImpressionPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [activeTab, setActiveTab] = useState("generate")
   const [showFullPricing, setShowFullPricing] = useState(false)
-const [userTokens, setUserTokens] = useState({ available: 10000, consumed: 3800 })
+  const [userTokens, setUserTokens] = useState({ available: 10000, consumed: 3800 })
   const [showPricingPopup, setShowPricingPopup] = useState(false)
   const [lastGeneratedAt, setLastGeneratedAt] = useState<Date | null>(null)
   const [showPricing, setShowPricing] = useState(false)
@@ -72,9 +94,8 @@ const [userTokens, setUserTokens] = useState({ available: 10000, consumed: 3800 
           "x-user-id": userId,
         },
       })
-const data = await response.json()
+      const data = await response.json()
       if (response.ok) {
-        
         setHistory(data.history)
       }
     } catch (error) {
@@ -117,7 +138,7 @@ const data = await response.json()
     setIsGenerating(true)
     setImpression("")
     setTokenUsage(null)
-let data: any = null
+    let data: any = null
     try {
       const response = await fetch("/api/generate-impression", {
         method: "POST",
@@ -133,7 +154,7 @@ let data: any = null
         }),
       })
 
-      const data = await response.json()
+      data = await response.json()
 
       if (!response.ok) {
         if (data.blocked) {
@@ -159,50 +180,50 @@ let data: any = null
         description: `Used ${data.tokenUsage.totalTokens} tokens (${format} format)`,
       })
     } catch (error: any) {
-  console.error("Error:", error)
-  
-  if (data?.tokenLimitReached) {
-    toast({
-      title: "Token Limit Reached!",
-      description: `You've used ${data.usage.used.toLocaleString()} of ${data.usage.limit.toLocaleString()} tokens. Please upgrade your plan to continue.`,
-      variant: "destructive",
-      duration: 10000, // Show for 10 seconds
-    })
-  } else if (data?.blocked) {
-    toast({
-      title: "Account Suspended",
-      description: "Your account has been temporarily suspended. Please contact support.",
-      variant: "destructive",
-      duration: 10000,
-    })
-  } else {
-    toast({
-      title: "Generation Failed",
-      description: error.message || "Failed to generate impression. Please try again.",
-      variant: "destructive",
-    })
-  }
-}finally {
+      console.error("Error:", error)
+
+      if (data?.tokenLimitReached) {
+        toast({
+          title: "Token Limit Reached!",
+          description: `You've used ${data.usage.used.toLocaleString()} of ${data.usage.limit.toLocaleString()} tokens. Please upgrade your plan to continue.`,
+          variant: "destructive",
+          duration: 10000,
+        })
+      } else if (data?.blocked) {
+        toast({
+          title: "Account Suspended",
+          description: "Your account has been temporarily suspended. Please contact support.",
+          variant: "destructive",
+          duration: 10000,
+        })
+      } else {
+        toast({
+          title: "Generation Failed",
+          description: error.message || "Failed to generate impression. Please try again.",
+          variant: "destructive",
+        })
+      }
+    } finally {
       setIsGenerating(false)
     }
   }
-const handlePurchase = async (planId: string, planName: string, price: string) => {
-  try {
-    // For demo - redirect to success page immediately
-    router.push(`/payment-success?plan=${planId}&amount=${price}&name=${encodeURIComponent(planName)}`)
-    
-    toast({
-      title: "Redirecting to Payment",
-      description: `Processing ${planName} purchase...`,
-    })
-  } catch (error) {
-    toast({
-      title: "Payment Error",
-      description: "Something went wrong. Please try again.",
-      variant: "destructive",
-    })
+
+  const handlePurchase = async (planId: string, planName: string, price: string) => {
+    try {
+      router.push(`/payment-success?plan=${planId}&amount=${price}&name=${encodeURIComponent(planName)}`)
+
+      toast({
+        title: "Redirecting to Payment",
+        description: `Processing ${planName} purchase...`,
+      })
+    } catch (error) {
+      toast({
+        title: "Payment Error",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
-}
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -227,17 +248,12 @@ const handlePurchase = async (planId: string, planName: string, price: string) =
   const formatText = (command: string, value?: string) => {
     if (!editorRef.current) return
 
-    // Save current state for undo
     saveToUndoStack()
-
-    // Focus the editor
     editorRef.current.focus()
 
     try {
-      // Ensure we have a selection or create one
       const selection = window.getSelection()
       if (!selection || selection.rangeCount === 0) {
-        // Create a range at the end of the content
         const range = document.createRange()
         range.selectNodeContents(editorRef.current)
         range.collapse(false)
@@ -245,20 +261,16 @@ const handlePurchase = async (planId: string, planName: string, price: string) =
         selection?.addRange(range)
       }
 
-      // Execute the command
       const success = document.execCommand(command, false, value)
-      
+
       if (!success) {
         console.warn(`Command ${command} failed`)
       }
 
-      // Update state
       setImpression(editorRef.current.innerHTML)
-      
     } catch (error) {
       console.error("Formatting error:", error)
-      
-      // Fallback: try again with a small delay
+
       setTimeout(() => {
         try {
           editorRef.current?.focus()
@@ -295,8 +307,8 @@ const handlePurchase = async (planId: string, planName: string, price: string) =
 
   const saveToUndoStack = () => {
     if (impression) {
-      setUndoStack((prev) => [...prev.slice(-9), impression]) // Keep last 10 states
-      setRedoStack([]) // Clear redo stack when new action is performed
+      setUndoStack((prev) => [...prev.slice(-9), impression])
+      setRedoStack([])
     }
   }
 
@@ -366,8 +378,6 @@ const handlePurchase = async (planId: string, planName: string, price: string) =
           </div>
         </div>
 
-     
-
         {showPricing && (
           <div className="mb-8">
             <Card className="border-2 border-blue-200 shadow-xl">
@@ -423,7 +433,6 @@ Example:
                     disabled={isGenerating}
                   />
 
-                  {/* Format Selection */}
                   <div className="space-y-3">
                     <Label className="text-sm font-medium text-gray-700">Impression Format:</Label>
                     <RadioGroup value={format} onValueChange={setFormat} className="flex space-x-6">
@@ -443,10 +452,9 @@ Example:
                       </div>
                     </RadioGroup>
                     <div className="text-xs text-gray-500">
-                      {format === 'formal' ? 
-                        'Professional, detailed impression suitable for radiology reports' : 
-                        'Concise, minimal impression with core findings only'
-                      }
+                      {format === "formal"
+                        ? "Professional, detailed impression suitable for radiology reports"
+                        : "Concise, minimal impression with core findings only"}
                     </div>
                   </div>
 
@@ -463,7 +471,7 @@ Example:
                     ) : (
                       <>
                         <Sparkles className="w-4 h-4 mr-2" />
-                        Generate {format === 'formal' ? 'Formal' : 'Short'} AI Impression
+                        Generate {format === "formal" ? "Formal" : "Short"} AI Impression
                       </>
                     )}
                   </Button>
@@ -479,7 +487,7 @@ Example:
                         <span>AI-Generated Impression</span>
                         {tokenUsage?.format && (
                           <Badge variant="outline" className="ml-2">
-                            {tokenUsage.format === 'formal' ? 'Formal' : 'Short'}
+                            {tokenUsage.format === "formal" ? "Formal" : "Short"}
                           </Badge>
                         )}
                       </CardTitle>
@@ -511,7 +519,6 @@ Example:
                   {impression ? (
                     <div className="space-y-4">
                       <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg border">
-                        {/* Undo/Redo */}
                         <Button
                           variant="outline"
                           size="sm"
@@ -534,7 +541,6 @@ Example:
                         </Button>
                         <div className="w-px h-6 bg-gray-300 mx-1"></div>
 
-                        {/* Text Formatting */}
                         <Button
                           variant="outline"
                           size="sm"
@@ -564,7 +570,6 @@ Example:
                         </Button>
                         <div className="w-px h-6 bg-gray-300 mx-1"></div>
 
-                        {/* Alignment */}
                         <Button
                           variant="outline"
                           size="sm"
@@ -594,7 +599,6 @@ Example:
                         </Button>
                         <div className="w-px h-6 bg-gray-300 mx-1"></div>
 
-                        {/* Font Size */}
                         <select
                           onChange={(e) => formatText("fontSize", e.target.value)}
                           className="h-8 px-2 border rounded hover:bg-blue-50 text-sm bg-white"
@@ -622,8 +626,6 @@ Example:
                         onInput={handleEditorInput}
                         onBlur={handleEditorInput}
                       />
-
-                      
                     </div>
                   ) : (
                     <div className="min-h-[300px] flex items-center justify-center text-gray-500">
@@ -636,7 +638,7 @@ Example:
                       ) : (
                         <div className="text-center">
                           <p>Your AI-generated impression will appear here</p>
-                          <p className="text-sm mt-2">Select format: {format === 'formal' ? 'Formal' : 'Short'}</p>
+                          <p className="text-sm mt-2">Select format: {format === "formal" ? "Formal" : "Short"}</p>
                         </div>
                       )}
                     </div>
@@ -696,7 +698,7 @@ Example:
                                 </span>
                                 {item.tokenUsage.format && (
                                   <Badge variant="outline" className="text-xs">
-                                    {item.tokenUsage.format === 'formal' ? 'Formal' : 'Short'}
+                                    {item.tokenUsage.format === "formal" ? "Formal" : "Short"}
                                   </Badge>
                                 )}
                               </CardTitle>
@@ -736,19 +738,16 @@ Example:
           </TabsContent>
         </Tabs>
         <div className="mt-8 space-y-6">
-          <TokenUsageWidget 
-  userId={user?.uid || ""}
-  refreshTrigger={impression ? Date.now() : 0}
-/>
-          
+          <TokenUsageWidget userId={user?.uid || ""} refreshTrigger={impression ? Date.now() : 0} />
+
           <Card className="border-gray-200">
             <CardContent className="p-4">
               <div className="flex items-start space-x-3">
                 <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
                 <div className="text-xs text-gray-700 leading-relaxed">
-                  <strong>Disclaimer:</strong> The impressions generated by this tool are powered by AI based on the input
-                  findings provided by the user. These outputs are intended for assistance and productivity enhancement
-                  only.
+                  <strong>Disclaimer:</strong> The impressions generated by this tool are powered by AI based on the
+                  input findings provided by the user. These outputs are intended for assistance and productivity
+                  enhancement only.
                   <br />
                   <br />
                   They are not a substitute for professional medical judgment, diagnosis, or decision-making. Users must
@@ -764,11 +763,11 @@ Example:
           </Card>
         </div>
         <PricingPopup isOpen={showPricingPopup} onClose={() => setShowPricingPopup(false)} />
-<PricingPopupFull 
-  isOpen={showFullPricing}
-  onClose={() => setShowFullPricing(false)}
-  onPurchase={handlePurchase}
-/>
+        <PricingPopupFull
+          isOpen={showFullPricing}
+          onClose={() => setShowFullPricing(false)}
+          onPurchase={handlePurchase}
+        />
       </div>
     </div>
   )
