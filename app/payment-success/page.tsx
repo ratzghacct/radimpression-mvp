@@ -1,143 +1,130 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, ArrowLeft, CreditCard, Calendar, User, DollarSign } from "lucide-react"
+import { CheckCircle, ArrowRight, Download, Mail } from "lucide-react"
+import Link from "next/link"
 
-function PaymentSuccessContent() {
+export default function PaymentSuccessPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [paymentDetails, setPaymentDetails] = useState({
-    plan: "",
-    amount: "",
-    name: "",
+  const [planDetails, setPlanDetails] = useState({
+    name: "Professional",
+    amount: "$19.99",
+    plan: "professional",
   })
 
   useEffect(() => {
-    const plan = searchParams.get("plan") || "Unknown Plan"
-    const amount = searchParams.get("amount") || "0"
-    const name = searchParams.get("name") || "Plan"
+    const plan = searchParams.get("plan")
+    const amount = searchParams.get("amount")
+    const name = searchParams.get("name")
 
-    setPaymentDetails({ plan, amount, name })
-  }, [searchParams])
-
-  const formatAmount = (amount: string) => {
-    const num = Number.parseFloat(amount.replace("$", ""))
-    return isNaN(num) ? "$0" : `$${num.toFixed(2)}`
-  }
-
-  const getPlanBadgeColor = (plan: string) => {
-    switch (plan.toLowerCase()) {
-      case "basic":
-        return "bg-blue-100 text-blue-800"
-      case "pro":
-        return "bg-purple-100 text-purple-800"
-      case "rad-plus":
-        return "bg-green-100 text-green-800"
-      default:
-        return "bg-gray-100 text-gray-800"
+    if (plan && amount && name) {
+      setPlanDetails({
+        plan,
+        amount,
+        name: decodeURIComponent(name),
+      })
     }
-  }
+  }, [searchParams])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur">
-          <CardHeader className="text-center pb-4">
-            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-              <CheckCircle className="w-8 h-8 text-green-600" />
-            </div>
-            <CardTitle className="text-2xl font-bold text-gray-900">Payment Successful!</CardTitle>
-            <CardDescription className="text-gray-600">
-              Thank you for upgrading your RadImpression account
-            </CardDescription>
+      <div className="max-w-2xl w-full space-y-8">
+        {/* Success Icon */}
+        <div className="text-center">
+          <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle className="w-12 h-12 text-white" />
+          </div>
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">Payment Successful!</h1>
+          <p className="text-xl text-gray-600">Welcome to RadImpression {planDetails.name}</p>
+        </div>
+
+        {/* Payment Details */}
+        <Card className="shadow-xl border-0">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl">Thank You for Your Purchase</CardTitle>
+            <CardDescription>Your subscription has been activated successfully</CardDescription>
           </CardHeader>
-
           <CardContent className="space-y-6">
-            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-600 flex items-center">
-                  <User className="w-4 h-4 mr-2" />
-                  Plan
-                </span>
-                <Badge className={`${getPlanBadgeColor(paymentDetails.plan)} font-medium`}>{paymentDetails.name}</Badge>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-600 flex items-center">
-                  <DollarSign className="w-4 h-4 mr-2" />
-                  Amount
-                </span>
-                <span className="font-semibold text-gray-900">{formatAmount(paymentDetails.amount)}</span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-600 flex items-center">
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Date
-                </span>
-                <span className="text-sm text-gray-900">{new Date().toLocaleDateString()}</span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-600 flex items-center">
-                  <CreditCard className="w-4 h-4 mr-2" />
-                  Status
-                </span>
-                <Badge className="bg-green-100 text-green-800">Completed</Badge>
+            <div className="bg-gray-50 rounded-lg p-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600">Plan</p>
+                  <p className="font-semibold text-lg">{planDetails.name}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Amount</p>
+                  <p className="font-semibold text-lg">{planDetails.amount}/month</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Status</p>
+                  <Badge className="bg-green-100 text-green-700">Active</Badge>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Next Billing</p>
+                  <p className="font-semibold">
+                    {new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="bg-blue-50 rounded-lg p-4">
-              <h3 className="font-semibold text-blue-900 mb-2">What's Next?</h3>
-              <ul className="text-sm text-blue-800 space-y-1">
-                <li>• Your account has been upgraded immediately</li>
-                <li>• Increased token limits are now active</li>
-                <li>• Access to premium features enabled</li>
-                <li>• Receipt sent to your email address</li>
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg">What's Next?</h3>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                  <span>Your account has been upgraded with increased limits</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                  <span>Access to advanced AI models and features</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                  <span>Priority customer support</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <Mail className="w-5 h-5 text-blue-500" />
+                  <span>Receipt sent to your email address</span>
+                </li>
               </ul>
             </div>
 
-            <div className="flex flex-col space-y-3">
-              <Button
-                onClick={() => router.push("/impression")}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-              >
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Button onClick={() => router.push("/impression")} className="flex-1">
+                <ArrowRight className="w-4 h-4 mr-2" />
                 Start Generating Impressions
               </Button>
-
-              <Button
-                variant="outline"
-                onClick={() => router.push("/")}
-                className="w-full text-gray-600 border-gray-300 hover:bg-gray-50"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Dashboard
+              <Button variant="outline" className="flex-1 bg-transparent">
+                <Download className="w-4 h-4 mr-2" />
+                Download Receipt
               </Button>
             </div>
           </CardContent>
         </Card>
-      </div>
-    </div>
-  )
-}
 
-export default function PaymentSuccessPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading payment details...</p>
+        {/* Support */}
+        <div className="text-center">
+          <p className="text-gray-600 mb-4">Need help getting started? Our support team is here to help.</p>
+          <div className="flex justify-center gap-4">
+            <Link href="/help">
+              <Button variant="outline" size="sm">
+                Help Center
+              </Button>
+            </Link>
+            <Link href="/contact">
+              <Button variant="outline" size="sm">
+                Contact Support
+              </Button>
+            </Link>
           </div>
         </div>
-      }
-    >
-      <PaymentSuccessContent />
-    </Suspense>
+      </div>
+    </div>
   )
 }

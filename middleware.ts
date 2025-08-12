@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 export function middleware(request: NextRequest) {
-  // Allow access to all pages since we removed the dashboard
+  // Add any middleware logic here
   return NextResponse.next()
 }
 
