@@ -1,21 +1,774 @@
 "use client"
 
-import { Suspense } from "react"
-import ImpressionPageContent from "./impression-content"
+import { useState, useEffect, useRef } from "react"
+import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Input } from "@/components/ui/input"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Label } from "@/components/ui/label"
+import {
+  Brain,
+  ArrowLeft,
+  Sparkles,
+  Copy,
+  RefreshCw,
+  Activity,
+  History,
+  Clock,
+  Search,
+  CreditCard,
+  Bold,
+  Italic,
+  Underline,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlertTriangle,
+  Undo,
+  Redo,
+  FileCheck,
+  Zap,
+} from "lucide-react"
+import { useAuth } from "@/contexts/auth-context"
+import { isAdmin } from "@/lib/admin"
+import { toast } from "@/hooks/use-toast"
+import { PricingSection } from "@/components/pricing-section"
+import { PricingPopup } from "@/components/pricing-popup"
+import { PricingPopupFull } from "@/components/pricing-popup-full"
+import { TokenUsageWidget } from "@/components/token-usage-widget"
+
+interface ImpressionHistory {
+  id: string
+  userId: string
+  findings: string
+  impression: string
+  tokenUsage: {
+    promptTokens: number
+    completionTokens: number
+    totalTokens: number
+    cost: number
+    format?: string
+  }
+  createdAt: Date
+  model: string
+}
 
 export default function ImpressionPage() {
+  const [findings, setFindings] = useState("")
+  const [impression, setImpression] = useState("")
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [tokenUsage, setTokenUsage] = useState<any>(null)
+  const [history, setHistory] = useState<ImpressionHistory[]>([])
+  const [searchTerm, setSearchTerm] = useState("")
+  const [activeTab, setActiveTab] = useState("generate")
+  const [showFullPricing, setShowFullPricing] = useState(false)
+  const [userTokens, setUserTokens] = useState({ available: 10000, consumed: 3800 })
+  const [showPricingPopup, setShowPricingPopup] = useState(false)
+  const [lastGeneratedAt, setLastGeneratedAt] = useState<Date | null>(null)
+  const [showPricing, setShowPricing] = useState(false)
+  const [format, setFormat] = useState("formal")
+  const editorRef = useRef<HTMLDivElement>(null)
+  const { user } = useAuth()
+  const router = useRouter()
+
+  const [undoStack, setUndoStack] = useState<string[]>([])
+  const [redoStack, setRedoStack] = useState<string[]>([])
+
+  useEffect(() => {
+    if (!user) {
+      router.push("/login")
+      return
+    }
+    fetchHistory()
+  }, [user, router])
+
+  const fetchHistory = async () => {
+    try {
+      const userId = user?.uid || user?.id || "demo-user"
+      const response = await fetch("/api/history", {
+        headers: {
+          "x-user-id": userId,
+        },
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setHistory(data.history)
+      }
+    } catch (error) {
+      console.error("Error fetching history:", error)
+    }
+  }
+
+  const generateImpression = async () => {
+    if (!findings.trim()) {
+      toast({
+        title: "Missing Findings",
+        description: "Please enter your radiology findings first.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to generate impressions.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const userId = user.uid || user.id || "demo-user"
+    const userEmail = user.email || "demo@radimpression.com"
+    const userName = user.displayName || user.name || "Demo User"
+
+    if (!userId) {
+      toast({
+        title: "Authentication Error",
+        description: "Unable to identify user. Please try logging in again.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsGenerating(true)
+    setImpression("")
+    setTokenUsage(null)
+    let data: any = null
+    try {
+      const response = await fetch("/api/generate-impression", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          findings: findings.trim(),
+          userId: userId,
+          userEmail: userEmail,
+          userName: userName,
+          format: format,
+        }),
+      })
+
+      data = await response.json()
+
+      if (!response.ok) {
+        if (data.blocked) {
+          setShowPricingPopup(true)
+          toast({
+            title: "Account Suspended",
+            description: "Your account has reached its usage limit. Please upgrade to continue.",
+            variant: "destructive",
+          })
+          return
+        }
+        throw new Error(data.error || "Failed to generate impression")
+      }
+
+      setImpression(data.impression)
+      setTokenUsage(data.tokenUsage)
+      setLastGeneratedAt(new Date())
+
+      fetchHistory()
+
+      toast({
+        title: "Impression Generated!",
+        description: `Used ${data.tokenUsage.totalTokens} tokens (${format} format)`,
+      })
+    } catch (error: any) {
+      console.error("Error:", error)
+
+      if (data?.tokenLimitReached) {
+        toast({
+          title: "Token Limit Reached!",
+          description: `You've used ${data.usage.used.toLocaleString()} of ${data.usage.limit.toLocaleString()} tokens. Please upgrade your plan to continue.`,
+          variant: "destructive",
+          duration: 10000,
+        })
+      } else if (data?.blocked) {
+        toast({
+          title: "Account Suspended",
+          description: "Your account has been temporarily suspended. Please contact support.",
+          variant: "destructive",
+          duration: 10000,
+        })
+      } else {
+        toast({
+          title: "Generation Failed",
+          description: error.message || "Failed to generate impression. Please try again.",
+          variant: "destructive",
+        })
+      }
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  const handlePurchase = async (planId: string, planName: string, price: string) => {
+    try {
+      router.push(`/payment-success?plan=${planId}&amount=${price}&name=${encodeURIComponent(planName)}`)
+
+      toast({
+        title: "Redirecting to Payment",
+        description: `Processing ${planName} purchase...`,
+      })
+    } catch (error) {
+      toast({
+        title: "Payment Error",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      const tempDiv = document.createElement("div")
+      tempDiv.innerHTML = text
+      const plainText = tempDiv.textContent || tempDiv.innerText || ""
+
+      await navigator.clipboard.writeText(plainText)
+      toast({
+        title: "Copied!",
+        description: "Impression copied to clipboard",
+      })
+    } catch (error) {
+      toast({
+        title: "Copy Failed",
+        description: "Failed to copy to clipboard",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const formatText = (command: string, value?: string) => {
+    if (!editorRef.current) return
+
+    saveToUndoStack()
+    editorRef.current.focus()
+
+    try {
+      const selection = window.getSelection()
+      if (!selection || selection.rangeCount === 0) {
+        const range = document.createRange()
+        range.selectNodeContents(editorRef.current)
+        range.collapse(false)
+        selection?.removeAllRanges()
+        selection?.addRange(range)
+      }
+
+      const success = document.execCommand(command, false, value)
+
+      if (!success) {
+        console.warn(`Command ${command} failed`)
+      }
+
+      setImpression(editorRef.current.innerHTML)
+    } catch (error) {
+      console.error("Formatting error:", error)
+
+      setTimeout(() => {
+        try {
+          editorRef.current?.focus()
+          document.execCommand(command, false, value)
+          if (editorRef.current) {
+            setImpression(editorRef.current.innerHTML)
+          }
+        } catch (e) {
+          console.error("Fallback formatting failed:", e)
+        }
+      }, 10)
+    }
+  }
+
+  const handleUndo = () => {
+    if (undoStack.length > 0 && editorRef.current) {
+      const previousState = undoStack[undoStack.length - 1]
+      setRedoStack((prev) => [...prev, impression])
+      setUndoStack((prev) => prev.slice(0, -1))
+      setImpression(previousState)
+      editorRef.current.innerHTML = previousState
+    }
+  }
+
+  const handleRedo = () => {
+    if (redoStack.length > 0 && editorRef.current) {
+      const nextState = redoStack[redoStack.length - 1]
+      setUndoStack((prev) => [...prev, impression])
+      setRedoStack((prev) => prev.slice(0, -1))
+      setImpression(nextState)
+      editorRef.current.innerHTML = nextState
+    }
+  }
+
+  const saveToUndoStack = () => {
+    if (impression) {
+      setUndoStack((prev) => [...prev.slice(-9), impression])
+      setRedoStack([])
+    }
+  }
+
+  const handleEditorInput = () => {
+    if (editorRef.current) {
+      setImpression(editorRef.current.innerHTML)
+    }
+  }
+
+  const filteredHistory = history.filter(
+    (item) =>
+      item.findings.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.impression.toLowerCase().includes(searchTerm.toLowerCase()),
+  )
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading impression generator...</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center space-x-4">
+            <Button variant="ghost" onClick={() => router.push("/")} className="text-gray-600 hover:text-gray-900 p-2">
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
+                <Brain className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">AI Impression Generator</h1>
+                <p className="text-gray-600">Generate professional radiology impressions with AI</p>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center space-x-4">
+            <Button
+              onClick={() => setShowFullPricing(true)}
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-2 rounded-lg shadow-lg"
+            >
+              <CreditCard className="w-4 h-4 mr-2" />
+              View Pricing
+            </Button>
+
+            {isAdmin(user.email) && (
+              <Button
+                variant="outline"
+                onClick={() => router.push("/admin")}
+                className="text-blue-600 border-blue-600 hover:bg-blue-50"
+              >
+                Admin Panel
+              </Button>
+            )}
+            <Badge className="bg-blue-100 text-blue-700">
+              <Activity className="w-4 h-4 mr-1" />
+              {user.displayName || user.email}
+            </Badge>
           </div>
         </div>
-      }
-    >
-      <ImpressionPageContent />
-    </Suspense>
+
+        {showPricing && (
+          <div className="mb-8">
+            <Card className="border-2 border-blue-200 shadow-xl">
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle className="text-2xl text-blue-900">Pricing Plans</CardTitle>
+                  <Button variant="ghost" onClick={() => setShowPricing(false)} className="text-gray-500">
+                    ✕
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <PricingSection />
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-8">
+            <TabsTrigger value="generate" className="flex items-center space-x-2">
+              <Sparkles className="w-4 h-4" />
+              <span>Generate Impression</span>
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex items-center space-x-2">
+              <History className="w-4 h-4" />
+              <span>History ({history.length})</span>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="generate">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <Card className="shadow-xl border-0 bg-white/95 backdrop-blur">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Brain className="w-5 h-5 text-blue-600" />
+                    <span>Radiology Findings</span>
+                  </CardTitle>
+                  <CardDescription>Enter your radiology findings below</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Textarea
+                    placeholder="Enter your radiology findings here... 
+
+Example:
+- Chest X-ray shows clear lung fields bilaterally
+- No acute cardiopulmonary abnormalities
+- Heart size within normal limits
+- No pleural effusion or pneumothorax"
+                    value={findings}
+                    onChange={(e) => setFindings(e.target.value)}
+                    className="min-h-[250px] medical-focus medical-transition"
+                    disabled={isGenerating}
+                  />
+
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium text-gray-700">Impression Format:</Label>
+                    <RadioGroup value={format} onValueChange={setFormat} className="flex space-x-6">
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="formal" id="formal" />
+                        <Label htmlFor="formal" className="flex items-center space-x-2 cursor-pointer">
+                          <FileCheck className="w-4 h-4 text-blue-600" />
+                          <span>Formal</span>
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="short" id="short" />
+                        <Label htmlFor="short" className="flex items-center space-x-2 cursor-pointer">
+                          <Zap className="w-4 h-4 text-green-600" />
+                          <span>Short</span>
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                    <div className="text-xs text-gray-500">
+                      {format === "formal"
+                        ? "Professional, detailed impression suitable for radiology reports"
+                        : "Concise, minimal impression with core findings only"}
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={generateImpression}
+                    disabled={isGenerating || !findings.trim()}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 medical-transition"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        Generating {format} Impression...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Generate {format === "formal" ? "Formal" : "Short"} AI Impression
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-xl border-0 bg-white/95 backdrop-blur">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center space-x-2">
+                        <Sparkles className="w-5 h-5 text-blue-600" />
+                        <span>AI-Generated Impression</span>
+                        {tokenUsage?.format && (
+                          <Badge variant="outline" className="ml-2">
+                            {tokenUsage.format === "formal" ? "Formal" : "Short"}
+                          </Badge>
+                        )}
+                      </CardTitle>
+                      <CardDescription>Professional radiology impression</CardDescription>
+                      {lastGeneratedAt && (
+                        <div className="flex items-center space-x-1 mt-2 text-sm text-gray-500">
+                          <Clock className="w-4 h-4" />
+                          <span>
+                            Last generated: {lastGeneratedAt.toLocaleDateString()} at{" "}
+                            {lastGeneratedAt.toLocaleTimeString()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    {impression && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copyToClipboard(impression)}
+                        className="text-blue-600 border-blue-600 hover:bg-blue-50 bg-transparent"
+                      >
+                        <Copy className="w-4 h-4 mr-1" />
+                        Copy
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {impression ? (
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg border">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleUndo}
+                          disabled={undoStack.length === 0}
+                          className="h-8 px-2 hover:bg-blue-50 bg-transparent"
+                          title="Undo"
+                        >
+                          <Undo className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleRedo}
+                          disabled={redoStack.length === 0}
+                          className="h-8 px-2 hover:bg-blue-50 bg-transparent"
+                          title="Redo"
+                        >
+                          <Redo className="w-4 h-4" />
+                        </Button>
+                        <div className="w-px h-6 bg-gray-300 mx-1"></div>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => formatText("bold")}
+                          className="h-8 px-2 hover:bg-blue-50 font-bold"
+                          title="Bold"
+                        >
+                          <Bold className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => formatText("italic")}
+                          className="h-8 px-2 hover:bg-blue-50 italic"
+                          title="Italic"
+                        >
+                          <Italic className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => formatText("underline")}
+                          className="h-8 px-2 hover:bg-blue-50 underline"
+                          title="Underline"
+                        >
+                          <Underline className="w-4 h-4" />
+                        </Button>
+                        <div className="w-px h-6 bg-gray-300 mx-1"></div>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => formatText("justifyLeft")}
+                          className="h-8 px-2 hover:bg-blue-50"
+                          title="Align Left"
+                        >
+                          <AlignLeft className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => formatText("justifyCenter")}
+                          className="h-8 px-2 hover:bg-blue-50"
+                          title="Align Center"
+                        >
+                          <AlignCenter className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => formatText("justifyRight")}
+                          className="h-8 px-2 hover:bg-blue-50"
+                          title="Align Right"
+                        >
+                          <AlignRight className="w-4 h-4" />
+                        </Button>
+                        <div className="w-px h-6 bg-gray-300 mx-1"></div>
+
+                        <select
+                          onChange={(e) => formatText("fontSize", e.target.value)}
+                          className="h-8 px-2 border rounded hover:bg-blue-50 text-sm bg-white"
+                          defaultValue="3"
+                        >
+                          <option value="1">Small</option>
+                          <option value="3">Normal</option>
+                          <option value="5">Large</option>
+                        </select>
+                      </div>
+
+                      <div
+                        ref={editorRef}
+                        contentEditable
+                        suppressContentEditableWarning={true}
+                        className="min-h-[300px] p-4 border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 prose prose-sm max-w-none"
+                        style={{
+                          fontFamily: "system-ui, -apple-system, sans-serif",
+                          fontSize: "14px",
+                          lineHeight: "1.6",
+                        }}
+                        dangerouslySetInnerHTML={{
+                          __html: impression.replace(/\n/g, "<br>"),
+                        }}
+                        onInput={handleEditorInput}
+                        onBlur={handleEditorInput}
+                      />
+                    </div>
+                  ) : (
+                    <div className="min-h-[300px] flex items-center justify-center text-gray-500">
+                      {isGenerating ? (
+                        <div className="text-center">
+                          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+                          <p>AI is analyzing your findings...</p>
+                          <p className="text-sm mt-2">Generating {format} impression</p>
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          <p>Your AI-generated impression will appear here</p>
+                          <p className="text-sm mt-2">Select format: {format === "formal" ? "Formal" : "Short"}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="history">
+            <div className="space-y-6">
+              <Card>
+                <CardContent className="p-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Input
+                      placeholder="Search your impressions..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {filteredHistory.length === 0 ? (
+                <Card>
+                  <CardContent className="text-center py-12">
+                    <Brain className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No Impressions Found</h3>
+                    <p className="text-gray-600 mb-4">
+                      {searchTerm ? "No impressions match your search." : "You haven't generated any impressions yet."}
+                    </p>
+                    <Button onClick={() => setActiveTab("generate")} className="bg-blue-600 hover:bg-blue-700">
+                      Generate Your First Impression
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-6">
+                  {filteredHistory.map((item) => (
+                    <Card key={item.id} className="shadow-lg border-0 bg-white/95 backdrop-blur">
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <Clock className="w-5 h-5 text-blue-600" />
+                            <div>
+                              <CardTitle className="text-lg flex items-center space-x-2">
+                                <span>
+                                  {new Date(item.createdAt).toLocaleDateString("en-US", {
+                                    year: "numeric",
+                                    month: "long",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </span>
+                                {item.tokenUsage.format && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {item.tokenUsage.format === "formal" ? "Formal" : "Short"}
+                                  </Badge>
+                                )}
+                              </CardTitle>
+                              <CardDescription>
+                                {item.tokenUsage.totalTokens} tokens • ${item.tokenUsage.cost.toFixed(4)} • {item.model}
+                              </CardDescription>
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => copyToClipboard(item.impression)}
+                            className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                          >
+                            <Copy className="w-4 h-4 mr-1" />
+                            Copy
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div>
+                          <h4 className="font-semibold text-gray-900 mb-2">Findings:</h4>
+                          <div className="bg-gray-50 rounded-lg p-3 text-sm">{item.findings}</div>
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-gray-900 mb-2">AI Impression:</h4>
+                          <div className="bg-blue-50 rounded-lg p-3 text-sm font-mono whitespace-pre-wrap">
+                            {item.impression}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
+        <div className="mt-8 space-y-6">
+          <TokenUsageWidget userId={user?.uid || ""} refreshTrigger={impression ? Date.now() : 0} />
+
+          <Card className="border-gray-200">
+            <CardContent className="p-4">
+              <div className="flex items-start space-x-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-gray-700 leading-relaxed">
+                  <strong>Disclaimer:</strong> The impressions generated by this tool are powered by AI based on the
+                  input findings provided by the user. These outputs are intended for assistance and productivity
+                  enhancement only.
+                  <br />
+                  <br />
+                  They are not a substitute for professional medical judgment, diagnosis, or decision-making. Users must
+                  independently verify all AI-generated content before using it in any official medical documentation,
+                  communication, or reporting.
+                  <br />
+                  <br />
+                  The tool's developers disclaim all liability for clinical use, interpretation errors, or patient
+                  outcomes resulting from reliance on AI-generated impressions.
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        <PricingPopup isOpen={showPricingPopup} onClose={() => setShowPricingPopup(false)} />
+        <PricingPopupFull
+          isOpen={showFullPricing}
+          onClose={() => setShowFullPricing(false)}
+          onPurchase={handlePurchase}
+        />
+      </div>
+    </div>
   )
 }

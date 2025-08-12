@@ -2,129 +2,90 @@
 
 import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { CheckCircle, ArrowRight, Download, Mail } from "lucide-react"
-import Link from "next/link"
+import { CheckCircle, ArrowLeft, Mail } from 'lucide-react'
 
 export default function PaymentSuccessPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [planDetails, setPlanDetails] = useState({
-    name: "Professional",
-    amount: "$19.99",
-    plan: "professional",
-  })
+  const [planName, setPlanName] = useState("")
+  const [amount, setAmount] = useState("")
 
   useEffect(() => {
-    const plan = searchParams.get("plan")
-    const amount = searchParams.get("amount")
-    const name = searchParams.get("name")
-
-    if (plan && amount && name) {
-      setPlanDetails({
-        plan,
-        amount,
-        name: decodeURIComponent(name),
-      })
+    const plan = searchParams.get('plan')
+    const amt = searchParams.get('amount')
+    const name = searchParams.get('name')
+    
+    const planNames: { [key: string]: string } = {
+      'starter': 'Starter Plan',
+      'pro': 'Pro Plan', 
+      'radplus': 'Rad Plus'
     }
+    
+    setPlanName(name || planNames[plan || ''] || 'Premium Plan')
+    setAmount(amt || '')
   }, [searchParams])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center p-4">
-      <div className="max-w-2xl w-full space-y-8">
-        {/* Success Icon */}
-        <div className="text-center">
-          <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="w-12 h-12 text-white" />
+      <Card className="w-full max-w-md text-center shadow-xl">
+        <CardHeader className="pb-4">
+          <div className="flex justify-center mb-4">
+            <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center">
+              <CheckCircle className="w-10 h-10 text-white" />
+            </div>
           </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Payment Successful!</h1>
-          <p className="text-xl text-gray-600">Welcome to RadImpression {planDetails.name}</p>
-        </div>
-
-        {/* Payment Details */}
-        <Card className="shadow-xl border-0">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Thank You for Your Purchase</CardTitle>
-            <CardDescription>Your subscription has been activated successfully</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="bg-gray-50 rounded-lg p-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600">Plan</p>
-                  <p className="font-semibold text-lg">{planDetails.name}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Amount</p>
-                  <p className="font-semibold text-lg">{planDetails.amount}/month</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Status</p>
-                  <Badge className="bg-green-100 text-green-700">Active</Badge>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Next Billing</p>
-                  <p className="font-semibold">
-                    {new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="font-semibold text-lg">What's Next?</h3>
-              <ul className="space-y-3">
-                <li className="flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-green-500" />
-                  <span>Your account has been upgraded with increased limits</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-green-500" />
-                  <span>Access to advanced AI models and features</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-green-500" />
-                  <span>Priority customer support</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <Mail className="w-5 h-5 text-blue-500" />
-                  <span>Receipt sent to your email address</span>
-                </li>
-              </ul>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Button onClick={() => router.push("/impression")} className="flex-1">
-                <ArrowRight className="w-4 h-4 mr-2" />
-                Start Generating Impressions
-              </Button>
-              <Button variant="outline" className="flex-1 bg-transparent">
-                <Download className="w-4 h-4 mr-2" />
-                Download Receipt
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Support */}
-        <div className="text-center">
-          <p className="text-gray-600 mb-4">Need help getting started? Our support team is here to help.</p>
-          <div className="flex justify-center gap-4">
-            <Link href="/help">
-              <Button variant="outline" size="sm">
-                Help Center
-              </Button>
-            </Link>
-            <Link href="/contact">
-              <Button variant="outline" size="sm">
-                Contact Support
-              </Button>
-            </Link>
+          <CardTitle className="text-2xl font-bold text-gray-900">
+            Payment Successful!
+          </CardTitle>
+        </CardHeader>
+        
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <p className="text-gray-600">
+              Thank you for upgrading to <strong>{planName}</strong>
+            </p>
+            {amount && (
+              <p className="text-lg font-semibold text-green-600">
+                Amount Paid: {amount}
+              </p>
+            )}
           </div>
-        </div>
-      </div>
+
+          <div className="bg-blue-50 rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-center space-x-2 text-blue-700">
+              <Mail className="w-5 h-5" />
+              <span className="font-medium">What's Next?</span>
+            </div>
+            <p className="text-sm text-blue-800 leading-relaxed">
+              Thank you for your payment!
+Your subscription is being activated and will be reviewed shortly.
+You'll receive an email confirmation within 24 hours.
+We're excited to help you save more time, boost your productivity,
+and simplify your radiology reporting — the smart way!
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <Button 
+              onClick={() => router.push('/impression')}
+              className="w-full bg-blue-600 hover:bg-blue-700"
+            >
+              Continue to Dashboard
+            </Button>
+            
+            <Button 
+              variant="outline"
+              onClick={() => router.push('/')}
+              className="w-full"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Home
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

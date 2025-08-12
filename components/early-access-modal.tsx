@@ -1,15 +1,18 @@
 "use client"
 
-import type React from "react"
-
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { toast } from "sonner"
-import { Loader2 } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Loader2, Mail, User, Lock } from 'lucide-react'
+import { toast } from "@/hooks/use-toast"
 
 interface EarlyAccessModalProps {
   isOpen: boolean
@@ -17,38 +20,63 @@ interface EarlyAccessModalProps {
 }
 
 export function EarlyAccessModal({ isOpen, onClose }: EarlyAccessModalProps) {
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    organization: "",
-    message: "",
-  })
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [email, setEmail] = useState("")
+  const [name, setName] = useState("")
+  const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsSubmitting(true)
+    
+    if (!name) {
+      toast({
+        title: "Name Required",
+        description: "Please enter your name",
+        variant: "destructive",
+      })
+      return
+    }
 
+    if (!email) {
+      toast({
+        title: "Email Required",
+        description: "Please enter your email address",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setLoading(true)
+    
     try {
       const response = await fetch("/api/early-access", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ email, name }),
       })
 
+      const data = await response.json()
+
       if (response.ok) {
-        toast.success("Thank you! We'll be in touch soon.")
-        setFormData({ name: "", email: "", organization: "", message: "" })
+        toast({
+          title: "Success!",
+          description: "Thank you! We'll contact you soon about early access.",
+        })
+        setEmail("")
+        setName("")
         onClose()
       } else {
-        throw new Error("Failed to submit request")
+        throw new Error(data.error || "Failed to submit")
       }
-    } catch (error) {
-      toast.error("Something went wrong. Please try again.")
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to submit. Please try again.",
+        variant: "destructive",
+      })
     } finally {
-      setIsSubmitting(false)
+      setLoading(false)
     }
   }
 
@@ -56,58 +84,75 @@ export function EarlyAccessModal({ isOpen, onClose }: EarlyAccessModalProps) {
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Request Early Access</DialogTitle>
+          <DialogTitle className="flex items-center space-x-2">
+            <Lock className="w-5 h-5 text-blue-600" />
+            <span>Rad Plus Early Access</span>
+          </DialogTitle>
           <DialogDescription>
-            Join our beta program and be among the first to experience RadImpression.
+            This plan is currently in early access. Coming soon for select users.
+            Want early access? Leave your details below!
           </DialogDescription>
         </DialogHeader>
+        
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="name">Full Name</Label>
-            <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              required
-            />
+          <div className="space-y-2">
+            <Label htmlFor="name">Name *</Label>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                id="name"
+                type="text"
+                placeholder="Your name" required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="pl-10"
+                disabled={loading}
+              />
+            </div>
           </div>
-          <div>
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              required
-            />
+          
+          <div className="space-y-2">
+            <Label htmlFor="email">Email Address *</Label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                id="email"
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="pl-10"
+                required
+                disabled={loading}
+              />
+            </div>
           </div>
-          <div>
-            <Label htmlFor="organization">Organization</Label>
-            <Input
-              id="organization"
-              value={formData.organization}
-              onChange={(e) => setFormData({ ...formData, organization: e.target.value })}
-            />
+          
+          <div className="flex space-x-2 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={loading}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={loading}
+              className="flex-1 bg-blue-600 hover:bg-blue-700"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                "Join Early Access"
+              )}
+            </Button>
           </div>
-          <div>
-            <Label htmlFor="message">Message (Optional)</Label>
-            <Textarea
-              id="message"
-              value={formData.message}
-              onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-              placeholder="Tell us about your use case..."
-            />
-          </div>
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Submitting...
-              </>
-            ) : (
-              "Submit Request"
-            )}
-          </Button>
         </form>
       </DialogContent>
     </Dialog>

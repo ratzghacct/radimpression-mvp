@@ -1,19 +1,60 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 
-export async function POST(request: NextRequest) {
+// Mock early access data for demo (replace with Supabase later)
+const earlyAccessUsers = [
+  {
+    id: 1,
+    email: "dr.smith@hospital.com",
+    name: "Dr. Sarah Smith",
+    created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    status: "pending"
+  },
+  {
+    id: 2,
+    email: "dr.johnson@clinic.org", 
+    name: "Dr. Michael Johnson",
+    created_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+    status: "approved"
+  },
+  {
+    id: 3,
+    email: "dr.wilson@medical.edu",
+    name: "Dr. Emily Wilson", 
+    created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    status: "pending"
+  }
+]
+
+export async function GET() {
   try {
-    const { name, email, organization, message } = await request.json()
+    return NextResponse.json({ 
+      users: earlyAccessUsers,
+      count: earlyAccessUsers.length 
+    })
+  } catch (error) {
+    console.error("Error fetching early access users:", error)
+    return NextResponse.json(
+      { error: "Failed to fetch early access users" },
+      { status: 500 }
+    )
+  }
+}
 
-    if (!name || !email) {
-      return NextResponse.json({ error: "Name and email are required" }, { status: 400 })
+export async function POST(request: Request) {
+  try {
+    const { email, name } = await request.json()
+    
+    if (!email) {
+      return NextResponse.json({ error: "Email required" }, { status: 400 })
     }
 
-    // Here you would typically save to database
-    console.log("Early access request:", { name, email, organization, message })
-
-    return NextResponse.json({ success: true })
+    // For now, just return success (replace with real database later)
+    return NextResponse.json({ 
+      success: true, 
+      message: "Thank you! We'll contact you soon." 
+    })
   } catch (error) {
-    console.error("Error processing early access request:", error)
-    return NextResponse.json({ error: "Failed to process request" }, { status: 500 })
+    console.error("Error saving early access email:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

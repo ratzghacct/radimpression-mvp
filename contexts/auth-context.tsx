@@ -1,25 +1,15 @@
 "use client"
 
 import type React from "react"
-
 import { createContext, useContext, useEffect, useState } from "react"
-import {
-  type User,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  GoogleAuthProvider,
-  signInWithPopup,
-} from "firebase/auth"
-import { auth } from "@/lib/firebase"
+import { type User, onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth"
+import { auth, googleProvider } from "@/lib/firebase"
 
 interface AuthContextType {
   user: User | null
   loading: boolean
-  login: (email: string, password: string) => Promise<void>
-  register: (email: string, password: string) => Promise<void>
-  loginWithGoogle: () => Promise<void>
+  signInWithGoogle: () => Promise<void>
+  signInDemo: (demoUser: User) => void
   logout: () => Promise<void>
 }
 
@@ -30,6 +20,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    const demoUser = localStorage.getItem("demo_user")
+    if (demoUser) {
+      try {
+        setUser(JSON.parse(demoUser))
+        setLoading(false)
+        return
+      } catch (error) {
+        localStorage.removeItem("demo_user")
+      }
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user)
       setLoading(false)
@@ -38,29 +39,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe
   }, [])
 
-  const login = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password)
+  const signInWithGoogle = async () => {
+    try {
+      localStorage.removeItem("demo_user")
+      await signInWithPopup(auth, googleProvider)
+    } catch (error) {
+      console.error("Error signing in with Google:", error)
+      throw error
+    }
   }
 
-  const register = async (email: string, password: string) => {
-    await createUserWithEmailAndPassword(auth, email, password)
-  }
+  const signInDemo = (demoUser: User) => {
+    const enhancedDemoUser = {
+      ...demoUser,
+      uid: demoUser.uid || "demo-user",
+      id: demoUser.uid || "demo-user",
+    }
 
-  const loginWithGoogle = async () => {
-    const provider = new GoogleAuthProvider()
-    await signInWithPopup(auth, provider)
+    localStorage.setItem("demo_user", JSON.stringify(enhancedDemoUser))
+    setUser(enhancedDemoUser as User)
   }
 
   const logout = async () => {
-    await signOut(auth)
+    try {
+      localStorage.removeItem("demo_user")
+
+      if (auth.currentUser) {
+        await signOut(auth)
+      } else {
+        setUser(null)
+      }
+    } catch (error) {
+      console.error("Error signing out:", error)
+      throw error
+    }
   }
 
   const value = {
     user,
     loading,
-    login,
-    register,
-    loginWithGoogle,
+    signInWithGoogle,
+    signInDemo,
     logout,
   }
 
