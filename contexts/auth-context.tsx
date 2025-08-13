@@ -1,9 +1,11 @@
 "use client"
 
 import type React from "react"
+
 import { createContext, useContext, useEffect, useState } from "react"
-import { type User, onAuthStateChanged, signInWithPopup, signOut, GoogleAuthProvider } from "firebase/auth"
+import type { User } from "firebase/auth"
 import { auth } from "@/lib/firebase"
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth"
 
 interface AuthContextType {
   user: User | null
@@ -20,30 +22,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check for demo user in localStorage first
-    const demoUser = localStorage.getItem("demo_user")
-    if (demoUser) {
-      try {
-        setUser(JSON.parse(demoUser))
-        setLoading(false)
-        return
-      } catch (error) {
-        localStorage.removeItem("demo_user")
-      }
-    }
-
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user)
       setLoading(false)
     })
 
-    return unsubscribe
+    return () => unsubscribe()
   }, [])
 
   const signInWithGoogle = async () => {
     try {
-      // Clear any demo user data
-      localStorage.removeItem("demo_user")
       const provider = new GoogleAuthProvider()
       await signInWithPopup(auth, provider)
     } catch (error) {
@@ -54,11 +42,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInDemo = async () => {
     try {
-      // Create a demo user object
+      // Create a demo user object that mimics Firebase User
       const demoUser = {
         uid: "demo-user-123",
         email: "demo@radimpression.com",
         displayName: "Demo User",
+        photoURL: null,
         emailVerified: true,
         isAnonymous: false,
         metadata: {
@@ -83,9 +72,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         toJSON: () => ({}),
       } as User
 
-      // Store demo user in localStorage
-      localStorage.setItem("demo_user", JSON.stringify(demoUser))
       setUser(demoUser)
+      setLoading(false)
     } catch (error) {
       console.error("Error with demo login:", error)
       throw error
@@ -94,15 +82,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      // Clear demo user data
-      localStorage.removeItem("demo_user")
-
-      // If it's a real Firebase user, sign out
-      if (auth.currentUser) {
-        await signOut(auth)
-      } else {
-        // Just clear the state for demo users
+      if (user?.uid === "demo-user-123") {
+        // Handle demo user logout
         setUser(null)
+      } else {
+        await signOut(auth)
       }
     } catch (error) {
       console.error("Error signing out:", error)
