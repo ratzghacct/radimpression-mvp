@@ -1,4 +1,4 @@
-import { type UserUsage, type TokenUsage, calculateCost } from "./admin"
+import type { UserUsage, TokenUsage } from "./admin"
 
 // In-memory storage for demo (replace with database in production)
 let userUsageData: Record<string, UserUsage> = {}
@@ -12,7 +12,7 @@ const initializeDemoData = () => {
   }
 
   console.log("Initializing demo data for the first time...")
-  
+
   userUsageData = {
     // Demo user starts with 0 usage
     "demo-user": {
@@ -237,11 +237,34 @@ export const updateUserPlan = (userId: string, plan: string): void => {
     console.log(`User ${userId} not found for plan update`)
   }
 }
-// ADD THESE MISSING FUNCTIONS:
+
+export const updateUserUsage = (userId: string, usage: Partial<UserUsage>): void => {
+  if (userUsageData[userId]) {
+    userUsageData[userId] = { ...userUsageData[userId], ...usage }
+    console.log(`User ${userId} usage updated`)
+  } else {
+    console.log(`User ${userId} not found for usage update`)
+  }
+}
+
 export const setUserPlan = (userId: string, plan: string): void => {
   updateUserPlan(userId, plan)
 }
 
 export const changePlan = (userId: string, newPlan: string): void => {
   updateUserPlan(userId, newPlan)
+}
+
+export const canUserGenerate = (userId: string): boolean => {
+  const usage = userUsageData[userId]
+  if (usage?.isBlocked) return false
+
+  const limits = {
+    free: 10,
+    basic: 100,
+    pro: 1000,
+    premium: 10000,
+  }
+
+  return usage?.tokensToday < (limits[usage.plan as keyof typeof limits] || 10)
 }

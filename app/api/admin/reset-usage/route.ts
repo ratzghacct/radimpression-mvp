@@ -6,21 +6,18 @@ export async function POST(request: NextRequest) {
   try {
     const { userId, adminEmail } = await request.json()
 
-    console.log("Reset usage request:", { userId, adminEmail })
-
     if (!isAdmin(adminEmail)) {
-      return NextResponse.json({ error: "Unauthorized - Admin access required" }, { status: 403 })
-    }
-
-    if (!userId) {
-      return NextResponse.json({ error: "User ID is required" }, { status: 400 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
     resetUserUsage(userId)
 
-    return NextResponse.json({ success: true, message: `Usage reset for user ${userId}` })
+    return NextResponse.json({
+      message: "User usage reset successfully",
+      success: true,
+    })
   } catch (error) {
     console.error("Error resetting user usage:", error)
-    return NextResponse.json({ error: "Failed to reset user usage" }, { status: 500 })
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
