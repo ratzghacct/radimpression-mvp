@@ -4,18 +4,29 @@ import { isAdmin } from "@/lib/admin"
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const adminEmail = searchParams.get("adminEmail")
+    const userEmail = request.headers.get("x-user-email")
 
-    if (!adminEmail || !isAdmin(adminEmail)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
+    if (!userEmail) {
+      return NextResponse.json({ error: "No user email provided" }, { status: 400 })
     }
 
+    if (!isAdmin(userEmail)) {
+      return NextResponse.json({ error: "Unauthorized - Admin access required" }, { status: 403 })
+    }
+
+    // Use in-memory data instead of Supabase
     const users = getAllUsers()
 
-    return NextResponse.json({ users })
+    return NextResponse.json({
+      users,
+      debug: {
+        adminEmail: userEmail,
+        userCount: users.length,
+        timestamp: new Date().toISOString(),
+      },
+    })
   } catch (error) {
-    console.error("Error fetching users:", error)
+    console.error("Error in admin API:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
