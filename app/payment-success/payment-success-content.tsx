@@ -3,8 +3,9 @@
 import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle } from "lucide-react"
+import { Suspense } from "react"
 
-export default function PaymentSuccessContent() {
+function PaymentSuccessInner() {
   const searchParams = useSearchParams()
   const sessionId = searchParams.get("session_id")
 
@@ -25,5 +26,21 @@ export default function PaymentSuccessContent() {
         </Card>
       </div>
     </div>
+  )
+}
+
+export default function PaymentSuccessContent() {
+  return (
+    <Suspense
+      fallback={
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-md mx-auto">
+            <div className="h-64 bg-gray-100 rounded animate-pulse"></div>
+          </div>
+        </div>
+      }
+    >
+      <PaymentSuccessInner />
+    </Suspense>
   )
 }
