@@ -8,15 +8,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 })
     }
 
-    // Mock early access signup - in production this would save to your database
-    console.log("Early access signup:", email)
+    // For demo purposes, just return success
+    // In production, you would save to Supabase
+    console.log(`Early access request from: ${email}`)
 
     return NextResponse.json({
+      message: "Thank you for your interest! We'll be in touch soon.",
       success: true,
-      message: "Successfully signed up for early access",
     })
   } catch (error) {
-    console.error("Error signing up for early access:", error)
-    return NextResponse.json({ error: "Failed to sign up" }, { status: 500 })
+    console.error("Error processing early access request:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
