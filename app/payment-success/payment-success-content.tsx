@@ -2,48 +2,39 @@
 
 import { Suspense } from "react"
 import { useSearchParams } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { CheckCircle, AlertCircle } from "lucide-react"
-import Link from "next/link"
+import { CheckCircle, Loader2 } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 function PaymentSuccessInner() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const sessionId = searchParams.get("session_id")
-  const success = searchParams.get("success")
-
-  const isSuccess = success === "true"
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          {isSuccess ? (
-            <>
-              <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-              <CardTitle className="text-2xl text-green-700">Payment Successful!</CardTitle>
-              <CardDescription>Thank you for your purchase. Your account has been upgraded.</CardDescription>
-            </>
-          ) : (
-            <>
-              <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-              <CardTitle className="text-2xl text-red-700">Payment Failed</CardTitle>
-              <CardDescription>There was an issue processing your payment. Please try again.</CardDescription>
-            </>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {sessionId && (
-            <div className="text-sm text-gray-600">
-              <p>Session ID: {sessionId}</p>
-            </div>
-          )}
-          <div className="flex flex-col gap-2">
-            <Button asChild className="w-full">
-              <Link href="/impression">{isSuccess ? "Start Creating Impressions" : "Try Again"}</Link>
+        <CardContent className="p-8 text-center">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle className="w-8 h-8 text-green-600" />
+          </div>
+
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Payment Successful!</h1>
+
+          <p className="text-gray-600 mb-6">
+            Thank you for your purchase. Your account has been upgraded and you can now start generating impressions.
+          </p>
+
+          {sessionId && <p className="text-sm text-gray-500 mb-6">Session ID: {sessionId}</p>}
+
+          <div className="space-y-3">
+            <Button onClick={() => router.push("/impression")} className="w-full bg-blue-600 hover:bg-blue-700">
+              Start Generating Impressions
             </Button>
-            <Button variant="outline" asChild className="w-full bg-transparent">
-              <Link href="/">Back to Home</Link>
+
+            <Button variant="outline" onClick={() => router.push("/")} className="w-full">
+              Return to Home
             </Button>
           </div>
         </CardContent>
@@ -56,10 +47,10 @@ export default function PaymentSuccessContent() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p>Loading payment status...</p>
+        <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center">
+          <div className="flex items-center space-x-2">
+            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+            <span className="text-gray-600">Loading...</span>
           </div>
         </div>
       }
