@@ -5,10 +5,10 @@ import { isAdmin } from "@/lib/admin"
 export async function POST(request: NextRequest) {
   try {
     console.log("=== USER ACTION API CALLED ===")
-    
+
     const body = await request.json()
     console.log("Request body:", body)
-    
+
     const { userId, action, value, adminEmail } = body
 
     console.log("Admin check for:", adminEmail)

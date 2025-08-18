@@ -18,13 +18,13 @@ export async function POST(request: NextRequest) {
 
     // Update the user's plan
     updateUserPlan(userId, plan)
-    
+
     // Reset usage when plan changes (fresh start with new limits)
     resetUserUsage(userId)
 
-    return NextResponse.json({ 
-      success: true, 
-      message: `User ${userId} upgraded to ${plan} plan and usage reset` 
+    return NextResponse.json({
+      success: true,
+      message: `User ${userId} upgraded to ${plan} plan and usage reset`,
     })
   } catch (error) {
     console.error("Error updating user plan:", error)
