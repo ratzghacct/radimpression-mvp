@@ -8,7 +8,21 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Users, DollarSign, TrendingUp, Shield, ShieldOff, ArrowLeft, Loader2, AlertTriangle, CheckCircle, Clock, Zap, RotateCcw, Crown } from 'lucide-react'
+import {
+  Users,
+  DollarSign,
+  TrendingUp,
+  Shield,
+  ShieldOff,
+  ArrowLeft,
+  Loader2,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  Zap,
+  RotateCcw,
+  Crown,
+} from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { toast } from "@/hooks/use-toast"
 
@@ -65,9 +79,9 @@ export default function AdminPage() {
       return
     }
     fetchData()
-    
-    // Refresh data every 10 seconds
-    const interval = setInterval(fetchData, 40000)
+
+    // Refresh data every 30 seconds
+    const interval = setInterval(fetchData, 30000)
     return () => clearInterval(interval)
   }, [user, router])
 
@@ -89,12 +103,29 @@ export default function AdminPage() {
       if (usersResponse.ok) {
         const usersData = await usersResponse.json()
         console.log("Users data received:", usersData)
-        setUsers(usersData.users || [])
-        
+
+        // Filter out dummy users - only show real users who have actually used the system
+        const realUsers = (usersData.users || []).filter((userData: UserUsage) => {
+          // Remove dummy users by email patterns and only show users with actual usage
+          const isDummyUser =
+            userData.email.includes("@medical.edu") ||
+            userData.email.includes("@hospital.com") ||
+            userData.email.includes("@clinic.org") ||
+            (userData.displayName.startsWith("Dr. ") && userData.totalTokensUsed === 0)
+
+          // Only show current user or users with actual usage (not dummy data)
+          return (
+            !isDummyUser &&
+            (userData.email === user?.email || userData.totalTokensUsed > 0 || userData.totalImpressions > 0)
+          )
+        })
+
+        setUsers(realUsers)
+
         // Initialize selected plans with current user plans
         const planMap: Record<string, string> = {}
-        usersData.users?.forEach((userData: UserUsage) => {
-          planMap[userData.userId] = userData.plan || 'free'
+        realUsers.forEach((userData: UserUsage) => {
+          planMap[userData.userId] = userData.plan || "free"
         })
         setSelectedPlans(planMap)
       } else {
@@ -205,7 +236,7 @@ export default function AdminPage() {
   const handleActivatePlan = async (userId: string) => {
     try {
       setActionLoading(`activate-${userId}`)
-      
+
       const newPlan = selectedPlans[userId]
       if (!newPlan) {
         throw new Error("Please select a plan first")
@@ -245,17 +276,17 @@ export default function AdminPage() {
   }
 
   const handlePlanChange = (userId: string, plan: string) => {
-    setSelectedPlans(prev => ({
+    setSelectedPlans((prev) => ({
       ...prev,
-      [userId]: plan
+      [userId]: plan,
     }))
   }
 
-  // Calculate statistics from the actual users data
+  // Calculate statistics from the actual filtered users data (real data only)
   const totalUsers = users.length
   const totalTokens = users.reduce((sum, user) => sum + user.totalTokensUsed, 0)
   const totalImpressions = users.reduce((sum, user) => sum + user.totalImpressions, 0)
-  const totalCost = totalTokens * 0.0025 / 1000 // $0.0025 per 1K tokens
+  const totalCost = (totalTokens * 0.005) / 1000 // $0.005 per 1K tokens (GPT-4o pricing)
   const activeUsers = users.filter((user) => {
     const daysSinceLastUse = (Date.now() - new Date(user.lastUsed).getTime()) / (1000 * 60 * 60 * 24)
     return daysSinceLastUse <= 7
@@ -287,7 +318,7 @@ export default function AdminPage() {
           </div>
           <div className="flex items-center space-x-2">
             <Button onClick={fetchData} variant="outline" size="sm" disabled={loading}>
-              <RotateCcw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
+              <RotateCcw className={`w-4 h-4 mr-1 ${loading ? "animate-spin" : ""}`} />
               Refresh
             </Button>
             <Badge className="bg-red-100 text-red-700">
@@ -315,7 +346,7 @@ export default function AdminPage() {
           </div>
         ) : (
           <>
-            {/* Stats Cards */}
+            {/* Stats Cards - Now showing real filtered data */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               <Card className="shadow-lg border-0 bg-white/95 backdrop-blur">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -374,13 +405,15 @@ export default function AdminPage() {
                 <Card className="shadow-lg border-0 bg-white/95 backdrop-blur">
                   <CardHeader>
                     <CardTitle>User Management</CardTitle>
-                    <CardDescription>Monitor and manage user accounts, plans, and usage</CardDescription>
+                    <CardDescription>
+                      Monitor and manage user accounts, plans, and usage (showing only real active users)
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
                     {users.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
                         <Users className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                        <p>No users found.</p>
+                        <p>No real users found. Only showing users with actual usage data.</p>
                       </div>
                     ) : (
                       <div className="overflow-x-auto">
@@ -399,12 +432,12 @@ export default function AdminPage() {
                           </TableHeader>
                           <TableBody>
                             {users.map((userData) => {
-                              const currentPlan = userData.plan || 'free'
+                              const currentPlan = userData.plan || "free"
                               const selectedPlan = selectedPlans[userData.userId] || currentPlan
                               const planLimit = PLAN_LIMITS[currentPlan as keyof typeof PLAN_LIMITS] || PLAN_LIMITS.free
                               const usagePercentage = (userData.totalTokensUsed / planLimit) * 100
                               const planChanged = selectedPlan !== currentPlan
-                              
+
                               return (
                                 <TableRow key={userData.userId}>
                                   <TableCell>
@@ -414,15 +447,22 @@ export default function AdminPage() {
                                     </div>
                                   </TableCell>
                                   <TableCell>
-                                    <Badge variant={currentPlan === 'free' ? 'secondary' : 'default'} className="flex items-center space-x-1 w-fit">
-                                      {currentPlan !== 'free' && <Crown className="w-3 h-3" />}
+                                    <Badge
+                                      variant={currentPlan === "free" ? "secondary" : "default"}
+                                      className="flex items-center space-x-1 w-fit"
+                                    >
+                                      {currentPlan !== "free" && <Crown className="w-3 h-3" />}
                                       <span>{currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} Plan</span>
                                     </Badge>
                                   </TableCell>
                                   <TableCell>
                                     <div className="text-sm">
-                                      <div>{userData.totalTokensUsed.toLocaleString()} / {planLimit.toLocaleString()}</div>
-                                      <div className="text-gray-500">{userData.totalImpressions} impressions • {usagePercentage.toFixed(1)}% used</div>
+                                      <div>
+                                        {userData.totalTokensUsed.toLocaleString()} / {planLimit.toLocaleString()}
+                                      </div>
+                                      <div className="text-gray-500">
+                                        {userData.totalImpressions} impressions • {usagePercentage.toFixed(1)}% used
+                                      </div>
                                     </div>
                                   </TableCell>
                                   <TableCell>
@@ -435,11 +475,11 @@ export default function AdminPage() {
                                     <div className="flex items-center space-x-2">
                                       <Clock className="w-4 h-4 text-gray-400" />
                                       <span className="text-sm">
-                                        {new Date(userData.lastUsed).toLocaleDateString('en-US', {
-                                          month: 'short',
-                                          day: '2-digit',
-                                          hour: '2-digit',
-                                          minute: '2-digit'
+                                        {new Date(userData.lastUsed).toLocaleDateString("en-US", {
+                                          month: "short",
+                                          day: "2-digit",
+                                          hour: "2-digit",
+                                          minute: "2-digit",
                                         })}
                                       </span>
                                     </div>
@@ -501,10 +541,16 @@ export default function AdminPage() {
                                       <Button
                                         variant={userData.isBlocked ? "default" : "destructive"}
                                         size="sm"
-                                        onClick={() => handleBlockUser(userData.userId, userData.isBlocked ? "unblock" : "block")}
-                                        disabled={actionLoading === `${userData.isBlocked ? "unblock" : "block"}-${userData.userId}`}
+                                        onClick={() =>
+                                          handleBlockUser(userData.userId, userData.isBlocked ? "unblock" : "block")
+                                        }
+                                        disabled={
+                                          actionLoading ===
+                                          `${userData.isBlocked ? "unblock" : "block"}-${userData.userId}`
+                                        }
                                       >
-                                        {actionLoading === `${userData.isBlocked ? "unblock" : "block"}-${userData.userId}` ? (
+                                        {actionLoading ===
+                                        `${userData.isBlocked ? "unblock" : "block"}-${userData.userId}` ? (
                                           <Loader2 className="w-3 h-3 animate-spin" />
                                         ) : userData.isBlocked ? (
                                           "Unblock"
