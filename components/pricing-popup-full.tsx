@@ -1,11 +1,8 @@
 "use client"
-
-import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Check, Sparkles, Zap, Crown, Lock, X } from "lucide-react"
-import { EarlyAccessModal } from "./early-access-modal"
 
 const plans = [
   {
@@ -77,13 +74,9 @@ interface PricingPopupFullProps {
 }
 
 export function PricingPopupFull({ isOpen, onClose, onPurchase }: PricingPopupFullProps) {
-  const [showEarlyAccess, setShowEarlyAccess] = useState(false)
-
   const handlePlanClick = (plan: (typeof plans)[0]) => {
-    if (plan.earlyAccess) {
-      setShowEarlyAccess(true)
-    } else if (plan.id === "basic" || plan.id === "pro") {
-      // Redirect to Razorpay payment link
+    if (plan.id === "basic" || plan.id === "pro" || plan.earlyAccess) {
+      // Redirect to Razorpay payment link for all paid plans including early access
       window.open("https://rzp.io/rzp/radimpressionpayment", "_blank")
     } else if (plan.id === "free") {
       // Handle free plan
@@ -144,17 +137,13 @@ export function PricingPopupFull({ isOpen, onClose, onPurchase }: PricingPopupFu
                       ))}
                     </ul>
 
-                    {plan.earlyAccess && <p className="text-sm text-gray-600 mb-2 text-center">Want early access?</p>}
-
                     <Button
                       className={`w-full py-3 px-4 rounded-lg font-semibold transition-colors duration-200 ${
-                        plan.earlyAccess
-                          ? "bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-lg"
-                          : plan.id === "free"
-                            ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                            : plan.buttonVariant === "default"
-                              ? "bg-blue-600 hover:bg-blue-700 text-white"
-                              : "bg-white hover:bg-gray-50 text-gray-900 border border-gray-300"
+                        plan.id === "free"
+                          ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                          : plan.buttonVariant === "default"
+                            ? "bg-blue-600 hover:bg-blue-700 text-white"
+                            : "bg-white hover:bg-gray-50 text-gray-900 border border-gray-300"
                       }`}
                       variant={plan.buttonVariant}
                       onClick={() => handlePlanClick(plan)}
@@ -169,8 +158,6 @@ export function PricingPopupFull({ isOpen, onClose, onPurchase }: PricingPopupFu
           </div>
         </div>
       </div>
-
-      <EarlyAccessModal isOpen={showEarlyAccess} onClose={() => setShowEarlyAccess(false)} />
     </div>
   )
 }
