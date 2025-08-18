@@ -2,65 +2,74 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Users,
-  Activity,
   DollarSign,
+  TrendingUp,
+  Shield,
+  ShieldOff,
   ArrowLeft,
-  RefreshCw,
-  Search,
+  Loader2,
   AlertTriangle,
   CheckCircle,
-  XCircle,
   Clock,
   Zap,
+  RotateCcw,
+  Crown,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
-import { isAdmin } from "@/lib/admin"
 import { toast } from "@/hooks/use-toast"
 
-interface User {
-  id: string
+interface UserUsage {
+  userId: string
   email: string
   displayName: string
-  plan: string
-  tokensUsed: number
-  tokensLimit: number
-  impressionsCount: number
-  lastActive: string
-  status: "active" | "blocked" | "inactive"
-  createdAt: string
+  totalTokensUsed: number
+  totalImpressions: number
+  isBlocked: boolean
+  lastUsed: Date
+  createdAt: Date
+  tokensToday: number
+  impressionsToday: number
+  lastResetDate: Date
+  plan?: string
 }
 
-interface AdminStats {
-  totalUsers: number
-  totalImpressions: number
-  totalTokens: number
-  totalCost: number
-  activeUsers: number
-  blockedUsers: number
+interface EarlyAccessUser {
+  id: number
+  email: string
+  name: string
+  created_at: string
+  status: string
 }
+
+const PLAN_LIMITS = {
+  free: 10000,
+  basic: 50000,
+  pro: 200000,
+  "rad-plus": 1000000,
+}
+
+const PLAN_OPTIONS = [
+  { value: "free", label: "Free Plan", limit: "10K tokens" },
+  { value: "basic", label: "Basic Plan", limit: "50K tokens" },
+  { value: "pro", label: "Pro Plan", limit: "200K tokens" },
+  { value: "rad-plus", label: "Rad Plus Plan", limit: "1M tokens" },
+]
 
 export default function AdminPage() {
-  const [users, setUsers] = useState<User[]>([])
-  const [stats, setStats] = useState<AdminStats>({
-    totalUsers: 0,
-    totalImpressions: 0,
-    totalTokens: 0,
-    totalCost: 0,
-    activeUsers: 0,
-    blockedUsers: 0,
-  })
+  const [users, setUsers] = useState<UserUsage[]>([])
+  const [earlyAccessUsers, setEarlyAccessUsers] = useState<EarlyAccessUser[]>([])
   const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [filterStatus, setFilterStatus] = useState("all")
-  const [filterPlan, setFilterPlan] = useState("all")
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedPlans, setSelectedPlans] = useState<Record<string, string>>({})
   const { user } = useAuth()
   const router = useRouter()
 
@@ -69,62 +78,81 @@ export default function AdminPage() {
       router.push("/login")
       return
     }
+    fetchData()
 
-    if (!isAdmin(user.email)) {
-      router.push("/")
-      return
-    }
-
-    fetchUsers()
+    // Refresh data every 30 seconds
+    const interval = setInterval(fetchData, 30000)
+    return () => clearInterval(interval)
   }, [user, router])
 
-  const fetchUsers = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/admin/users")
-      const data = await response.json()
+      setError(null)
 
-      if (response.ok) {
-        // Filter out dummy users and only show real users with actual usage
-        const realUsers = data.users.filter((user: User) => {
-          // Remove dummy users by email patterns and display names
-          const isDummyEmail =
-            user.email.includes("@medical.edu") ||
-            user.email.includes("@hospital.com") ||
-            user.email.includes("@clinic.org")
-          const isDummyName = user.displayName.startsWith("Dr.") && !user.email.includes("demo@radimpression.com")
+      console.log("Fetching admin data...")
 
-          // Only show users with actual usage or the demo user
-          const hasActualUsage = user.tokensUsed > 0 || user.impressionsCount > 0
-          const isDemoUser = user.email.includes("demo@radimpression.com")
+      // Fetch user usage data
+      const usersResponse = await fetch("/api/admin/users", {
+        headers: {
+          "x-user-email": user?.email || "",
+        },
+        cache: "no-store",
+      })
 
-          return !isDummyEmail && !isDummyName && (hasActualUsage || isDemoUser)
+      if (usersResponse.ok) {
+        const usersData = await usersResponse.json()
+        console.log("Users data received:", usersData)
+
+        // Filter out dummy users - only show real users who have actually used the system
+        const realUsers = (usersData.users || []).filter((userData: UserUsage) => {
+          // Remove dummy users by email patterns and only show users with actual usage
+          const isDummyUser =
+            userData.email.includes("@medical.edu") ||
+            userData.email.includes("@hospital.com") ||
+            userData.email.includes("@clinic.org") ||
+            (userData.displayName.startsWith("Dr. ") && userData.totalTokensUsed === 0)
+
+          // Only show current user or users with actual usage (not dummy data)
+          return (
+            !isDummyUser &&
+            (userData.email === user?.email || userData.totalTokensUsed > 0 || userData.totalImpressions > 0)
+          )
         })
 
         setUsers(realUsers)
 
-        // Calculate stats from real users only
-        const totalUsers = realUsers.length
-        const totalImpressions = realUsers.reduce((sum, user) => sum + user.impressionsCount, 0)
-        const totalTokens = realUsers.reduce((sum, user) => sum + user.tokensUsed, 0)
-        const totalCost = (totalTokens * 0.005) / 1000 // GPT-4o pricing: $0.005 per 1K tokens
-        const activeUsers = realUsers.filter((user) => user.status === "active").length
-        const blockedUsers = realUsers.filter((user) => user.status === "blocked").length
-
-        setStats({
-          totalUsers,
-          totalImpressions,
-          totalTokens,
-          totalCost,
-          activeUsers,
-          blockedUsers,
+        // Initialize selected plans with current user plans
+        const planMap: Record<string, string> = {}
+        realUsers.forEach((userData: UserUsage) => {
+          planMap[userData.userId] = userData.plan || "free"
         })
+        setSelectedPlans(planMap)
+      } else {
+        const errorData = await usersResponse.json()
+        console.error("Users API error:", errorData)
+        throw new Error(errorData.error || "Failed to fetch users")
       }
-    } catch (error) {
-      console.error("Error fetching users:", error)
+
+      // Fetch early access data
+      try {
+        const earlyAccessResponse = await fetch("/api/early-access", {
+          cache: "no-store",
+        })
+        if (earlyAccessResponse.ok) {
+          const earlyAccessData = await earlyAccessResponse.json()
+          setEarlyAccessUsers(earlyAccessData.users || [])
+        }
+      } catch (earlyAccessError) {
+        console.log("Early access API not available, skipping...")
+        setEarlyAccessUsers([])
+      }
+    } catch (error: any) {
+      console.error("Error fetching admin data:", error)
+      setError(error.message)
       toast({
         title: "Error",
-        description: "Failed to fetch user data",
+        description: error.message,
         variant: "destructive",
       })
     } finally {
@@ -132,9 +160,11 @@ export default function AdminPage() {
     }
   }
 
-  const handleUserAction = async (userId: string, action: string, value?: string) => {
+  const handleBlockUser = async (userId: string, action: "block" | "unblock") => {
     try {
-      const response = await fetch("/api/admin/user-action", {
+      setActionLoading(`${action}-${userId}`)
+
+      const response = await fetch("/api/admin/block-user", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -142,47 +172,131 @@ export default function AdminPage() {
         body: JSON.stringify({
           userId,
           action,
-          value,
+          adminEmail: user?.email,
         }),
       })
-
-      const data = await response.json()
 
       if (response.ok) {
         toast({
           title: "Success",
-          description: data.message,
+          description: `User ${action}ed successfully`,
         })
-        fetchUsers() // Refresh the data
+        await fetchData()
       } else {
-        throw new Error(data.error)
+        const errorData = await response.json()
+        throw new Error(errorData.error || `Failed to ${action} user`)
       }
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to perform action",
+        description: error.message,
         variant: "destructive",
       })
+    } finally {
+      setActionLoading(null)
     }
   }
 
-  const filteredUsers = users.filter((user) => {
-    const matchesSearch =
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.displayName.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = filterStatus === "all" || user.status === filterStatus
-    const matchesPlan = filterPlan === "all" || user.plan.toLowerCase().includes(filterPlan.toLowerCase())
+  const handleResetUsage = async (userId: string) => {
+    try {
+      setActionLoading(`reset-${userId}`)
 
-    return matchesSearch && matchesStatus && matchesPlan
-  })
+      const response = await fetch("/api/admin/reset-usage", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId,
+          adminEmail: user?.email,
+        }),
+      })
 
-  if (loading) {
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "User usage reset successfully",
+        })
+        await fetchData()
+      } else {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to reset usage")
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      })
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleActivatePlan = async (userId: string) => {
+    try {
+      setActionLoading(`activate-${userId}`)
+
+      const newPlan = selectedPlans[userId]
+      if (!newPlan) {
+        throw new Error("Please select a plan first")
+      }
+
+      const response = await fetch("/api/admin/update-plan", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId,
+          plan: newPlan,
+          adminEmail: user?.email,
+        }),
+      })
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: `User plan updated to ${newPlan} and usage reset`,
+        })
+        await fetchData()
+      } else {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to update plan")
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      })
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handlePlanChange = (userId: string, plan: string) => {
+    setSelectedPlans((prev) => ({
+      ...prev,
+      [userId]: plan,
+    }))
+  }
+
+  // Calculate statistics from the actual filtered users data (real data only)
+  const totalUsers = users.length
+  const totalTokens = users.reduce((sum, user) => sum + user.totalTokensUsed, 0)
+  const totalImpressions = users.reduce((sum, user) => sum + user.totalImpressions, 0)
+  const totalCost = (totalTokens * 0.005) / 1000 // $0.005 per 1K tokens (GPT-4o pricing)
+  const activeUsers = users.filter((user) => {
+    const daysSinceLastUse = (Date.now() - new Date(user.lastUsed).getTime()) / (1000 * 60 * 60 * 24)
+    return daysSinceLastUse <= 7
+  }).length
+  const blockedUsers = users.filter((user) => user.isBlocked).length
+
+  if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
-        <div className="text-center">
-          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-          <p className="text-gray-600">Loading admin dashboard...</p>
-        </div>
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     )
   }
@@ -193,274 +307,339 @@ export default function AdminPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center space-x-4">
-            <Button variant="ghost" onClick={() => router.push("/")} className="text-gray-600 hover:text-gray-900 p-2">
-              <ArrowLeft className="w-5 h-5" />
+            <Button variant="ghost" onClick={() => router.push("/")} className="text-gray-600 hover:text-gray-900">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Home
             </Button>
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-              <p className="text-gray-600">
-                Monitor usage, manage users, and view analytics (showing only real active users)
-              </p>
+              <p className="text-gray-600">Monitor usage, manage users, and view analytics</p>
             </div>
           </div>
-          <div className="flex items-center space-x-4">
-            <Button onClick={fetchUsers} variant="outline" className="text-blue-600 border-blue-600 bg-transparent">
-              <RefreshCw className="w-4 h-4 mr-2" />
+          <div className="flex items-center space-x-2">
+            <Button onClick={fetchData} variant="outline" size="sm" disabled={loading}>
+              <RotateCcw className={`w-4 h-4 mr-1 ${loading ? "animate-spin" : ""}`} />
               Refresh
             </Button>
             <Badge className="bg-red-100 text-red-700">
-              <AlertTriangle className="w-4 h-4 mr-1" />
+              <Shield className="w-4 h-4 mr-1" />
               Admin Access
             </Badge>
           </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalUsers}</div>
-              <p className="text-xs text-muted-foreground">{stats.activeUsers} active in last 7 days</p>
+        {error && (
+          <Card className="mb-6 border-red-200 bg-red-50">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-2 text-red-700">
+                <AlertTriangle className="w-5 h-5" />
+                <span className="font-medium">Error: {error}</span>
+              </div>
             </CardContent>
           </Card>
+        )}
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Impressions</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalImpressions}</div>
-              <p className="text-xs text-muted-foreground">AI-generated reports</p>
-            </CardContent>
-          </Card>
+        {loading ? (
+          <div className="text-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+            <p className="text-gray-600">Loading admin data...</p>
+          </div>
+        ) : (
+          <>
+            {/* Stats Cards - Now showing real filtered data */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <Card className="shadow-lg border-0 bg-white/95 backdrop-blur">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{totalUsers}</div>
+                  <p className="text-xs text-muted-foreground">{activeUsers} active in last 7 days</p>
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Tokens</CardTitle>
-              <Zap className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalTokens.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">OpenAI API usage</p>
-            </CardContent>
-          </Card>
+              <Card className="shadow-lg border-0 bg-white/95 backdrop-blur">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Impressions</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{totalImpressions}</div>
+                  <p className="text-xs text-muted-foreground">AI-generated reports</p>
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Estimated Cost</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">${stats.totalCost.toFixed(2)}</div>
-              <p className="text-xs text-muted-foreground">OpenAI API costs</p>
-            </CardContent>
-          </Card>
-        </div>
+              <Card className="shadow-lg border-0 bg-white/95 backdrop-blur">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Tokens</CardTitle>
+                  <Zap className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{totalTokens.toLocaleString()}</div>
+                  <p className="text-xs text-muted-foreground">OpenAI API usage</p>
+                </CardContent>
+              </Card>
 
-        {/* Main Content */}
-        <Tabs defaultValue="users" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="users">User Management</TabsTrigger>
-            <TabsTrigger value="early-access">Early Access</TabsTrigger>
-          </TabsList>
+              <Card className="shadow-lg border-0 bg-white/95 backdrop-blur">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Estimated Cost</CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">${totalCost.toFixed(2)}</div>
+                  <p className="text-xs text-muted-foreground">OpenAI API costs</p>
+                </CardContent>
+              </Card>
+            </div>
 
-          <TabsContent value="users" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>User Management</CardTitle>
-                <CardDescription>
-                  Monitor and manage user accounts, plans, and usage (showing only active users)
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {/* Filters */}
-                <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <Input
-                      placeholder="Search users..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                  <Select value={filterStatus} onValueChange={setFilterStatus}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="blocked">Blocked</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={filterPlan} onValueChange={setFilterPlan}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Filter by plan" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Plans</SelectItem>
-                      <SelectItem value="free">Free Plan</SelectItem>
-                      <SelectItem value="basic">Basic Plan</SelectItem>
-                      <SelectItem value="pro">Pro Plan</SelectItem>
-                      <SelectItem value="rad">Rad Plus</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+            {/* Tabs */}
+            <Tabs defaultValue="users" className="space-y-6">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="users">User Management</TabsTrigger>
+                <TabsTrigger value="early-access">Early Access</TabsTrigger>
+              </TabsList>
 
-                {/* Users Table */}
-                {filteredUsers.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No Users Found</h3>
-                    <p className="text-gray-600">
-                      {searchTerm || filterStatus !== "all" || filterPlan !== "all"
-                        ? "No users match your current filters."
-                        : "No users with actual usage data found."}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-gray-200">
-                          <th className="text-left py-3 px-4 font-medium text-gray-900">User</th>
-                          <th className="text-left py-3 px-4 font-medium text-gray-900">Current Plan</th>
-                          <th className="text-left py-3 px-4 font-medium text-gray-900">Usage</th>
-                          <th className="text-left py-3 px-4 font-medium text-gray-900">Today's Usage</th>
-                          <th className="text-left py-3 px-4 font-medium text-gray-900">Last Active</th>
-                          <th className="text-left py-3 px-4 font-medium text-gray-900">Status</th>
-                          <th className="text-left py-3 px-4 font-medium text-gray-900">Plan Management</th>
-                          <th className="text-left py-3 px-4 font-medium text-gray-900">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredUsers.map((user) => (
-                          <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50">
-                            <td className="py-4 px-4">
-                              <div>
-                                <div className="font-medium text-gray-900">{user.displayName}</div>
-                                <div className="text-sm text-gray-500">{user.email}</div>
-                              </div>
-                            </td>
-                            <td className="py-4 px-4">
-                              <Badge variant="outline" className="text-xs">
-                                {user.plan}
-                              </Badge>
-                            </td>
-                            <td className="py-4 px-4">
-                              <div className="text-sm">
-                                <div>
-                                  {user.tokensUsed.toLocaleString()} / {user.tokensLimit.toLocaleString()} tokens
-                                </div>
-                                <div className="text-gray-500">{user.impressionsCount} impressions</div>
-                                <div className="text-xs text-gray-400">
-                                  {((user.tokensUsed / user.tokensLimit) * 100).toFixed(1)}% used
-                                </div>
-                              </div>
-                            </td>
-                            <td className="py-4 px-4">
-                              <div className="text-sm">
-                                <div>0 tokens</div>
-                                <div className="text-gray-500">0 impressions</div>
-                              </div>
-                            </td>
-                            <td className="py-4 px-4">
-                              <div className="text-sm">
-                                <div>{new Date(user.lastActive).toLocaleDateString()}</div>
-                                <div className="text-gray-500">{new Date(user.lastActive).toLocaleTimeString()}</div>
-                              </div>
-                            </td>
-                            <td className="py-4 px-4">
-                              <Badge
-                                variant={
-                                  user.status === "active"
-                                    ? "default"
-                                    : user.status === "blocked"
-                                      ? "destructive"
-                                      : "secondary"
-                                }
-                                className="text-xs"
-                              >
-                                {user.status === "active" && <CheckCircle className="w-3 h-3 mr-1" />}
-                                {user.status === "blocked" && <XCircle className="w-3 h-3 mr-1" />}
-                                {user.status === "inactive" && <Clock className="w-3 h-3 mr-1" />}
-                                {user.status}
-                              </Badge>
-                            </td>
-                            <td className="py-4 px-4">
-                              <Select
-                                value={user.plan}
-                                onValueChange={(value) => handleUserAction(user.id, "update-plan", value)}
-                              >
-                                <SelectTrigger className="w-[120px] text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="Free Plan">Free Plan</SelectItem>
-                                  <SelectItem value="Basic Plan">Basic Plan</SelectItem>
-                                  <SelectItem value="Pro Plan">Pro Plan</SelectItem>
-                                  <SelectItem value="Rad Plus">Rad Plus</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </td>
-                            <td className="py-4 px-4">
-                              <div className="flex flex-col space-y-2">
-                                <Button
-                                  size="sm"
-                                  variant={user.status === "blocked" ? "default" : "destructive"}
-                                  onClick={() =>
-                                    handleUserAction(user.id, user.status === "blocked" ? "unblock" : "block")
-                                  }
-                                  className="text-xs"
-                                >
-                                  {user.status === "blocked" ? "Unblock" : "Block"}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleUserAction(user.id, "reset-usage")}
-                                  className="text-xs"
-                                >
-                                  <RefreshCw className="w-3 h-3 mr-1" />
-                                  Reset
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+              {/* Users Tab */}
+              <TabsContent value="users">
+                <Card className="shadow-lg border-0 bg-white/95 backdrop-blur">
+                  <CardHeader>
+                    <CardTitle>User Management</CardTitle>
+                    <CardDescription>
+                      Monitor and manage user accounts, plans, and usage (showing only real active users)
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {users.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <Users className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                        <p>No real users found. Only showing users with actual usage data.</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>User</TableHead>
+                              <TableHead>Current Plan</TableHead>
+                              <TableHead>Usage</TableHead>
+                              <TableHead>Today's Usage</TableHead>
+                              <TableHead>Last Active</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Plan Management</TableHead>
+                              <TableHead>Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {users.map((userData) => {
+                              const currentPlan = userData.plan || "free"
+                              const selectedPlan = selectedPlans[userData.userId] || currentPlan
+                              const planLimit = PLAN_LIMITS[currentPlan as keyof typeof PLAN_LIMITS] || PLAN_LIMITS.free
+                              const usagePercentage = (userData.totalTokensUsed / planLimit) * 100
+                              const planChanged = selectedPlan !== currentPlan
 
-          <TabsContent value="early-access" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Early Access Requests</CardTitle>
-                <CardDescription>Manage early access requests for premium features</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-12">
-                  <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Early Access Requests</h3>
-                  <p className="text-gray-600">
-                    Early access requests will appear here when users sign up for premium features.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                              return (
+                                <TableRow key={userData.userId}>
+                                  <TableCell>
+                                    <div>
+                                      <div className="font-medium">{userData.displayName}</div>
+                                      <div className="text-sm text-gray-500">{userData.email}</div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge
+                                      variant={currentPlan === "free" ? "secondary" : "default"}
+                                      className="flex items-center space-x-1 w-fit"
+                                    >
+                                      {currentPlan !== "free" && <Crown className="w-3 h-3" />}
+                                      <span>{currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} Plan</span>
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="text-sm">
+                                      <div>
+                                        {userData.totalTokensUsed.toLocaleString()} / {planLimit.toLocaleString()}
+                                      </div>
+                                      <div className="text-gray-500">
+                                        {userData.totalImpressions} impressions • {usagePercentage.toFixed(1)}% used
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="text-sm">
+                                      <div>{userData.tokensToday.toLocaleString()} tokens</div>
+                                      <div className="text-gray-500">{userData.impressionsToday} impressions</div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center space-x-2">
+                                      <Clock className="w-4 h-4 text-gray-400" />
+                                      <span className="text-sm">
+                                        {new Date(userData.lastUsed).toLocaleDateString("en-US", {
+                                          month: "short",
+                                          day: "2-digit",
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                        })}
+                                      </span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    {userData.isBlocked ? (
+                                      <Badge variant="destructive" className="flex items-center space-x-1 w-fit">
+                                        <ShieldOff className="w-3 h-3" />
+                                        <span>Blocked</span>
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="secondary" className="flex items-center space-x-1 w-fit">
+                                        <CheckCircle className="w-3 h-3" />
+                                        <span>Active</span>
+                                      </Badge>
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex flex-col space-y-2 min-w-[200px]">
+                                      <Select
+                                        value={selectedPlan}
+                                        onValueChange={(value) => handlePlanChange(userData.userId, value)}
+                                      >
+                                        <SelectTrigger className="w-full">
+                                          <SelectValue placeholder="Select plan" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {PLAN_OPTIONS.map((plan) => (
+                                            <SelectItem key={plan.value} value={plan.value}>
+                                              <div className="flex items-center justify-between w-full">
+                                                <span>{plan.label}</span>
+                                                <span className="text-xs text-gray-500 ml-2">({plan.limit})</span>
+                                              </div>
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                      {planChanged && (
+                                        <Button
+                                          size="sm"
+                                          onClick={() => handleActivatePlan(userData.userId)}
+                                          disabled={actionLoading === `activate-${userData.userId}`}
+                                          className="bg-green-600 hover:bg-green-700 text-white"
+                                        >
+                                          {actionLoading === `activate-${userData.userId}` ? (
+                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                          ) : (
+                                            <>
+                                              <Crown className="w-3 h-3 mr-1" />
+                                              Activate
+                                            </>
+                                          )}
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex flex-col space-y-2">
+                                      <Button
+                                        variant={userData.isBlocked ? "default" : "destructive"}
+                                        size="sm"
+                                        onClick={() =>
+                                          handleBlockUser(userData.userId, userData.isBlocked ? "unblock" : "block")
+                                        }
+                                        disabled={
+                                          actionLoading ===
+                                          `${userData.isBlocked ? "unblock" : "block"}-${userData.userId}`
+                                        }
+                                      >
+                                        {actionLoading ===
+                                        `${userData.isBlocked ? "unblock" : "block"}-${userData.userId}` ? (
+                                          <Loader2 className="w-3 h-3 animate-spin" />
+                                        ) : userData.isBlocked ? (
+                                          "Unblock"
+                                        ) : (
+                                          "Block"
+                                        )}
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleResetUsage(userData.userId)}
+                                        disabled={actionLoading === `reset-${userData.userId}`}
+                                      >
+                                        {actionLoading === `reset-${userData.userId}` ? (
+                                          <Loader2 className="w-3 h-3 animate-spin" />
+                                        ) : (
+                                          <>
+                                            <RotateCcw className="w-3 h-3 mr-1" />
+                                            Reset
+                                          </>
+                                        )}
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              )
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Early Access Tab */}
+              <TabsContent value="early-access">
+                <Card className="shadow-lg border-0 bg-white/95 backdrop-blur">
+                  <CardHeader>
+                    <CardTitle>Early Access Requests</CardTitle>
+                    <CardDescription>Users who signed up for early access to the platform</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {earlyAccessUsers.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <Users className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                        <p>No early access requests yet.</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Name</TableHead>
+                              <TableHead>Email</TableHead>
+                              <TableHead>Date Signed Up</TableHead>
+                              <TableHead>Status</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {earlyAccessUsers.map((user) => (
+                              <TableRow key={user.id}>
+                                <TableCell>
+                                  <div className="font-medium">{user.name || "Not provided"}</div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="text-sm">{user.email}</div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center space-x-2">
+                                    <Clock className="w-4 h-4 text-gray-400" />
+                                    <span className="text-sm">{new Date(user.created_at).toLocaleDateString()}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="secondary">{user.status}</Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </>
+        )}
       </div>
     </div>
   )
