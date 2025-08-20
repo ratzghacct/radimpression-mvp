@@ -1,153 +1,82 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
-import { Brain, Sparkles, RefreshCw, FileCheck, Zap } from "lucide-react"
-import { getAvailableFormats, hasFeatureAccess } from "@/lib/plan-features"
+import { Loader2 } from "lucide-react"
+import { getAvailableFormats, hasFeatureAccess, getPlanName } from "@/lib/plan-features"
 
-interface User {
-  uid?: string
-  id?: string
-  email?: string
-  displayName?: string
-  name?: string
-}
-
-interface FindingsCardProps {
+interface ImpressionFindingsCardProps {
   findings: string
+  setFindings: (value: string) => void
   format: string
+  setFormat: (value: string) => void
   isGenerating: boolean
-  user: User
-  userPlan: string
-  onFindingsChange: (value: string) => void
-  onFormatChange: (value: string) => void
   onGenerate: () => void
-}
-
-function FindingsTextarea({
-  findings,
-  isGenerating,
-  onFindingsChange,
-}: {
-  findings: string
-  isGenerating: boolean
-  onFindingsChange: (value: string) => void
-}) {
-  return (
-    <Textarea
-      placeholder="Enter your radiology findings here... 
-
-Example:
-- Chest X-ray shows clear lung fields bilaterally
-- No acute cardiopulmonary abnormalities
-- Heart size within normal limits
-- No pleural effusion or pneumothorax"
-      value={findings}
-      onChange={(e) => onFindingsChange(e.target.value)}
-      className="min-h-[250px] medical-focus medical-transition"
-      disabled={isGenerating}
-    />
-  )
-}
-
-function FormatSelector({
-  format,
-  userPlan,
-  onFormatChange,
-}: {
-  format: string
   userPlan: string
-  onFormatChange: (value: string) => void
-}) {
-  return (
-    <div className="space-y-3">
-      <Label className="text-sm font-medium text-gray-700">Impression Format:</Label>
-      <RadioGroup value={format} onValueChange={onFormatChange} className="flex space-x-6">
-        {getAvailableFormats(userPlan).map((formatOption) => (
-          <div key={formatOption.value} className="flex items-center space-x-2">
-            <RadioGroupItem value={formatOption.value} id={formatOption.value} />
-            <Label htmlFor={formatOption.value} className="flex items-center space-x-2 cursor-pointer">
-              {formatOption.icon === "fileCheck" && <FileCheck className="w-4 h-4 text-blue-600" />}
-              {formatOption.icon === "zap" && <Zap className="w-4 h-4 text-green-600" />}
-              <span>{formatOption.label}</span>
-            </Label>
-          </div>
-        ))}
-      </RadioGroup>
-      <div className="text-xs text-gray-500">
-        {format === "formal"
-          ? "Professional, detailed impression suitable for radiology reports"
-          : "Concise, minimal impression with core findings only"}
-        {!hasFeatureAccess(userPlan, "formalImpression") && (
-          <div className="mt-1 text-amber-600">
-            <strong>Note:</strong> Formal impressions are available with Pro and Rad Plus plans.
-          </div>
-        )}
-      </div>
-    </div>
-  )
 }
 
-function GenerateButton({
-  isGenerating,
+export function ImpressionFindingsCard({
   findings,
+  setFindings,
   format,
+  setFormat,
+  isGenerating,
   onGenerate,
-}: {
-  isGenerating: boolean
-  findings: string
-  format: string
-  onGenerate: () => void
-}) {
-  return (
-    <Button
-      onClick={onGenerate}
-      disabled={isGenerating || !findings.trim()}
-      className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 medical-transition"
-    >
-      {isGenerating ? (
-        <>
-          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-          Generating {format} Impression...
-        </>
-      ) : (
-        <>
-          <Sparkles className="w-4 h-4 mr-2" />
-          Generate {format === "formal" ? "Formal" : "Short"} AI Impression
-        </>
-      )}
-    </Button>
-  )
-}
-
-export default function ImpressionFindingsCard({
-  findings,
-  format,
-  isGenerating,
-  user,
   userPlan,
-  onFindingsChange,
-  onFormatChange,
-  onGenerate,
-}: FindingsCardProps) {
+}: ImpressionFindingsCardProps) {
+  const availableFormats = getAvailableFormats(userPlan)
+  const planName = getPlanName(userPlan)
+
   return (
-    <Card className="shadow-xl border-0 bg-white/95 backdrop-blur">
+    <Card className="h-fit">
       <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <Brain className="w-5 h-5 text-blue-600" />
-          <span>Radiology Findings</span>
-        </CardTitle>
-        <CardDescription>Enter your radiology findings below</CardDescription>
+        <CardTitle>Clinical Findings</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <FindingsTextarea findings={findings} isGenerating={isGenerating} onFindingsChange={onFindingsChange} />
+        <Textarea
+          placeholder="Enter your clinical findings here..."
+          value={findings}
+          onChange={(e) => setFindings(e.target.value)}
+          className="min-h-[200px] resize-none"
+        />
 
-        <FormatSelector format={format} userPlan={userPlan} onFormatChange={onFormatChange} />
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">Format</Label>
+          <RadioGroup value={format} onValueChange={setFormat}>
+            {availableFormats.includes("short") && (
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="short" id="short" />
+                <Label htmlFor="short">Short</Label>
+              </div>
+            )}
+            {availableFormats.includes("formal") && (
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="formal" id="formal" />
+                <Label htmlFor="formal">Formal</Label>
+              </div>
+            )}
+          </RadioGroup>
 
-        <GenerateButton isGenerating={isGenerating} findings={findings} format={format} onGenerate={onGenerate} />
+          {!hasFeatureAccess(userPlan, "formal") && (
+            <p className="text-sm text-muted-foreground">
+              Formal format is available for Pro and Rad Plus plans. Current plan: {planName}
+            </p>
+          )}
+        </div>
+
+        <Button onClick={onGenerate} disabled={!findings.trim() || isGenerating} className="w-full">
+          {isGenerating ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Generating...
+            </>
+          ) : (
+            "Generate Impression"
+          )}
+        </Button>
       </CardContent>
     </Card>
   )

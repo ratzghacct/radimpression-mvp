@@ -1,81 +1,59 @@
-// Plan-based feature access control
-// This file manages what features are available for each subscription plan
-
 export interface PlanFeatures {
-  formalImpression: boolean
-  shortImpression: boolean
-  // Future features can be added here
-  // advancedAnalytics: boolean
-  // prioritySupport: boolean
+  formats: string[]
+  tokenLimit: number
+  name: string
 }
 
 export const PLAN_FEATURES: Record<string, PlanFeatures> = {
   free: {
-    formalImpression: false,
-    shortImpression: true,
+    formats: ["short"],
+    tokenLimit: 10000,
+    name: "Free",
   },
   basic: {
-    formalImpression: false,
-    shortImpression: true,
+    formats: ["short"],
+    tokenLimit: 50000,
+    name: "Basic",
   },
   pro: {
-    formalImpression: true,
-    shortImpression: true,
+    formats: ["short", "formal"],
+    tokenLimit: 200000,
+    name: "Pro",
   },
-  radplus: {
-    formalImpression: true,
-    shortImpression: true,
+  "rad-plus": {
+    formats: ["short", "formal"],
+    tokenLimit: 1000000,
+    name: "Rad Plus",
   },
 }
 
-export const getUserPlan = (user: any): string => {
-  // Get user's plan from user object or default to free
-  // This assumes the plan is stored in user object from admin updates
-  return user?.plan?.toLowerCase() || "free"
+export function hasFeatureAccess(plan: string, feature: string): boolean {
+  const planFeatures = PLAN_FEATURES[plan?.toLowerCase()] || PLAN_FEATURES.free
+  return planFeatures.formats.includes(feature)
 }
 
-export const refreshUserPlan = async (userId: string): Promise<string> => {
+export function getAvailableFormats(plan: string): string[] {
+  const planFeatures = PLAN_FEATURES[plan?.toLowerCase()] || PLAN_FEATURES.free
+  return planFeatures.formats
+}
+
+export function getPlanName(plan: string): string {
+  const planFeatures = PLAN_FEATURES[plan?.toLowerCase()] || PLAN_FEATURES.free
+  return planFeatures.name
+}
+
+export async function refreshUserPlan(userId: string): Promise<string> {
   try {
     const response = await fetch(`/api/user-plan?userId=${userId}`)
     const data = await response.json()
 
-    if (response.ok && data.success) {
-      return data.plan.toLowerCase()
+    if (data.success) {
+      return data.plan
     }
 
-    // Fallback to free plan if API fails
-    return "free"
+    return "free" // fallback
   } catch (error) {
     console.error("Error refreshing user plan:", error)
-    return "free"
+    return "free" // fallback
   }
-}
-
-export const hasFeatureAccess = (userPlan: string, feature: keyof PlanFeatures): boolean => {
-  const planFeatures = PLAN_FEATURES[userPlan] || PLAN_FEATURES.free
-  return planFeatures[feature] || false
-}
-
-export const getAvailableFormats = (userPlan: string): Array<{ value: string; label: string; icon: string }> => {
-  const formats = []
-
-  // Short format is available for all plans
-  if (hasFeatureAccess(userPlan, "shortImpression")) {
-    formats.push({
-      value: "short",
-      label: "Short",
-      icon: "zap",
-    })
-  }
-
-  // Formal format only for Pro and Rad Plus
-  if (hasFeatureAccess(userPlan, "formalImpression")) {
-    formats.push({
-      value: "formal",
-      label: "Formal",
-      icon: "fileCheck",
-    })
-  }
-
-  return formats
 }

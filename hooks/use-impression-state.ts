@@ -1,38 +1,46 @@
 "use client"
 
 import { useState } from "react"
-import type { ImpressionHistory, TokenUsage } from "@/lib/impression-types"
+import type { ImpressionHistory } from "@/lib/impression-types"
 
-export const useImpressionState = () => {
+export function useImpressionState() {
   const [findings, setFindings] = useState("")
   const [impression, setImpression] = useState("")
+  const [format, setFormat] = useState("short")
   const [isGenerating, setIsGenerating] = useState(false)
-  const [tokenUsage, setTokenUsage] = useState<TokenUsage | null>(null)
   const [history, setHistory] = useState<ImpressionHistory[]>([])
-  const [searchTerm, setSearchTerm] = useState("")
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [activeTab, setActiveTab] = useState("generate")
-  const [showFullPricing, setShowFullPricing] = useState(false)
-  const [showPricingPopup, setShowPricingPopup] = useState(false)
-  const [lastGeneratedAt, setLastGeneratedAt] = useState<Date | null>(null)
-  const [showPricing, setShowPricing] = useState(false)
-  const [format, setFormat] = useState("formal")
   const [userPlan, setUserPlan] = useState("free")
   const [planRefreshTrigger, setPlanRefreshTrigger] = useState(0)
 
   const resetState = () => {
     setFindings("")
     setImpression("")
+    setFormat("short")
     setIsGenerating(false)
-    setTokenUsage(null)
-    setLastGeneratedAt(null)
-    setFormat("formal")
   }
 
-  const validateState = () => {
-    return {
-      hasFindings: findings.trim().length > 0,
-      canGenerate: !isGenerating && findings.trim().length > 0,
-    }
+  const updateState = (
+    newState: Partial<{
+      findings: string
+      impression: string
+      format: string
+      isGenerating: boolean
+      history: ImpressionHistory[]
+      isLoadingHistory: boolean
+      activeTab: string
+      userPlan: string
+    }>,
+  ) => {
+    if (newState.findings !== undefined) setFindings(newState.findings)
+    if (newState.impression !== undefined) setImpression(newState.impression)
+    if (newState.format !== undefined) setFormat(newState.format)
+    if (newState.isGenerating !== undefined) setIsGenerating(newState.isGenerating)
+    if (newState.history !== undefined) setHistory(newState.history)
+    if (newState.isLoadingHistory !== undefined) setIsLoadingHistory(newState.isLoadingHistory)
+    if (newState.activeTab !== undefined) setActiveTab(newState.activeTab)
+    if (newState.userPlan !== undefined) setUserPlan(newState.userPlan)
   }
 
   const triggerPlanRefresh = () => {
@@ -43,38 +51,27 @@ export const useImpressionState = () => {
     // State values
     findings,
     impression,
-    isGenerating,
-    tokenUsage,
-    history,
-    searchTerm,
-    activeTab,
-    showFullPricing,
-    showPricingPopup,
-    lastGeneratedAt,
-    showPricing,
     format,
+    isGenerating,
+    history,
+    isLoadingHistory,
+    activeTab,
     userPlan,
     planRefreshTrigger,
 
     // State setters
     setFindings,
     setImpression,
-    setIsGenerating,
-    setTokenUsage,
-    setHistory,
-    setSearchTerm,
-    setActiveTab,
-    setShowFullPricing,
-    setShowPricingPopup,
-    setLastGeneratedAt,
-    setShowPricing,
     setFormat,
+    setIsGenerating,
+    setHistory,
+    setIsLoadingHistory,
+    setActiveTab,
     setUserPlan,
-    setPlanRefreshTrigger,
 
     // Utility functions
     resetState,
-    validateState,
+    updateState,
     triggerPlanRefresh,
   }
 }
