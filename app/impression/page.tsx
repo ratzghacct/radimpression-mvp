@@ -40,6 +40,7 @@ import { PricingSection } from "@/components/pricing-section-notrequired"
 import { PricingPopup } from "@/components/pricing-popup"
 import { PricingPopupFull } from "@/components/pricing-popup-full"
 import { TokenUsageWidget } from "@/components/token-usage-widget"
+import { hasFeatureAccess, getAvailableFormats } from "@/lib/plan-features"
 
 interface ImpressionHistory {
   id: string
@@ -85,6 +86,13 @@ export default function ImpressionPage() {
     }
     fetchHistory()
   }, [user, router])
+
+  useEffect(() => {
+    const availableFormats = getAvailableFormats(user)
+    if (availableFormats.length > 0 && !availableFormats.find((f) => f.value === format)) {
+      setFormat(availableFormats[0].value)
+    }
+  }, [user, format])
 
   const fetchHistory = async () => {
     try {
@@ -436,25 +444,26 @@ Example:
                   <div className="space-y-3">
                     <Label className="text-sm font-medium text-gray-700">Impression Format:</Label>
                     <RadioGroup value={format} onValueChange={setFormat} className="flex space-x-6">
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="formal" id="formal" />
-                        <Label htmlFor="formal" className="flex items-center space-x-2 cursor-pointer">
-                          <FileCheck className="w-4 h-4 text-blue-600" />
-                          <span>Formal</span>
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="short" id="short" />
-                        <Label htmlFor="short" className="flex items-center space-x-2 cursor-pointer">
-                          <Zap className="w-4 h-4 text-green-600" />
-                          <span>Short</span>
-                        </Label>
-                      </div>
+                      {getAvailableFormats(user).map((formatOption) => (
+                        <div key={formatOption.value} className="flex items-center space-x-2">
+                          <RadioGroupItem value={formatOption.value} id={formatOption.value} />
+                          <Label htmlFor={formatOption.value} className="flex items-center space-x-2 cursor-pointer">
+                            {formatOption.icon === "fileCheck" && <FileCheck className="w-4 h-4 text-blue-600" />}
+                            {formatOption.icon === "zap" && <Zap className="w-4 h-4 text-green-600" />}
+                            <span>{formatOption.label}</span>
+                          </Label>
+                        </div>
+                      ))}
                     </RadioGroup>
                     <div className="text-xs text-gray-500">
                       {format === "formal"
                         ? "Professional, detailed impression suitable for radiology reports"
                         : "Concise, minimal impression with core findings only"}
+                      {!hasFeatureAccess(user, "formalImpression") && (
+                        <div className="mt-1 text-amber-600">
+                          <strong>Note:</strong> Formal impressions are available with Pro and Rad Plus plans.
+                        </div>
+                      )}
                     </div>
                   </div>
 
