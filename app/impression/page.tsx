@@ -1,9 +1,7 @@
 "use client"
 
 import { CardTitle } from "@/components/ui/card"
-
 import { CardHeader } from "@/components/ui/card"
-
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
@@ -15,7 +13,7 @@ import { PricingSection } from "@/components/pricing-section-notrequired"
 import { PricingPopup } from "@/components/pricing-popup"
 import { PricingPopupFull } from "@/components/pricing-popup-full"
 import { TokenUsageWidget } from "@/components/token-usage-widget"
-import { getAvailableFormats } from "@/lib/plan-features"
+import { getAvailableFormats, refreshUserPlan } from "@/lib/plan-features"
 
 // Import modular components
 import ImpressionHeader from "@/components/impression-header"
@@ -48,6 +46,8 @@ export default function ImpressionPage() {
     lastGeneratedAt,
     showPricing,
     format,
+    userPlan,
+    planRefreshTrigger,
     setFindings,
     setImpression,
     setIsGenerating,
@@ -60,6 +60,8 @@ export default function ImpressionPage() {
     setLastGeneratedAt,
     setShowPricing,
     setFormat,
+    setUserPlan,
+    triggerPlanRefresh,
   } = useImpressionState()
 
   // Editor management
@@ -71,14 +73,48 @@ export default function ImpressionPage() {
       return
     }
     fetchHistory()
+    refreshPlan()
   }, [user, router])
 
+  // Refresh plan data periodically and on focus
   useEffect(() => {
-    const availableFormats = getAvailableFormats(user)
+    if (!user) return
+
+    const refreshPlan = async () => {
+      const userId = user?.uid || user?.id || "demo-user"
+      const freshPlan = await refreshUserPlan(userId)
+      setUserPlan(freshPlan)
+    }
+
+    refreshPlan()
+
+    // Refresh plan every 30 seconds
+    const interval = setInterval(refreshPlan, 30000)
+
+    // Refresh plan when window gains focus
+    const handleFocus = () => refreshPlan()
+    window.addEventListener("focus", handleFocus)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener("focus", handleFocus)
+    }
+  }, [user, planRefreshTrigger])
+
+  // Update format when plan changes
+  useEffect(() => {
+    const availableFormats = getAvailableFormats(userPlan)
     if (availableFormats.length > 0 && !availableFormats.find((f) => f.value === format)) {
       setFormat(availableFormats[0].value)
     }
-  }, [user, format])
+  }, [userPlan, format])
+
+  const refreshPlan = async () => {
+    if (!user) return
+    const userId = user?.uid || user?.id || "demo-user"
+    const freshPlan = await refreshUserPlan(userId)
+    setUserPlan(freshPlan)
+  }
 
   const fetchHistory = async () => {
     try {
@@ -241,9 +277,6 @@ export default function ImpressionPage() {
               <CardHeader>
                 <div className="flex justify-between items-center">
                   <CardTitle className="text-2xl text-blue-900">Pricing Plans</CardTitle>
-                  {/* Button variant="ghost" onClick={() => setShowPricing(false)} className="text-gray-500">
-                    ✕
-                  </Button> */}
                 </div>
               </CardHeader>
               <CardContent>
@@ -272,6 +305,7 @@ export default function ImpressionPage() {
                 format={format}
                 isGenerating={isGenerating}
                 user={user}
+                userPlan={userPlan}
                 onFindingsChange={setFindings}
                 onFormatChange={setFormat}
                 onGenerate={generateImpression}

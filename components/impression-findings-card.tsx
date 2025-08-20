@@ -21,6 +21,7 @@ interface FindingsCardProps {
   format: string
   isGenerating: boolean
   user: User
+  userPlan: string
   onFindingsChange: (value: string) => void
   onFormatChange: (value: string) => void
   onGenerate: () => void
@@ -54,18 +55,18 @@ Example:
 
 function FormatSelector({
   format,
-  user,
+  userPlan,
   onFormatChange,
 }: {
   format: string
-  user: User
+  userPlan: string
   onFormatChange: (value: string) => void
 }) {
   return (
     <div className="space-y-3">
       <Label className="text-sm font-medium text-gray-700">Impression Format:</Label>
       <RadioGroup value={format} onValueChange={onFormatChange} className="flex space-x-6">
-        {getAvailableFormats(user).map((formatOption) => (
+        {getAvailableFormats(userPlan).map((formatOption) => (
           <div key={formatOption.value} className="flex items-center space-x-2">
             <RadioGroupItem value={formatOption.value} id={formatOption.value} />
             <Label htmlFor={formatOption.value} className="flex items-center space-x-2 cursor-pointer">
@@ -80,7 +81,7 @@ function FormatSelector({
         {format === "formal"
           ? "Professional, detailed impression suitable for radiology reports"
           : "Concise, minimal impression with core findings only"}
-        {!hasFeatureAccess(user, "formalImpression") && (
+        {!hasFeatureAccess(userPlan, "formalImpression") && (
           <div className="mt-1 text-amber-600">
             <strong>Note:</strong> Formal impressions are available with Pro and Rad Plus plans.
           </div>
@@ -127,6 +128,7 @@ export default function ImpressionFindingsCard({
   format,
   isGenerating,
   user,
+  userPlan,
   onFindingsChange,
   onFormatChange,
   onGenerate,
@@ -143,7 +145,7 @@ export default function ImpressionFindingsCard({
       <CardContent className="space-y-4">
         <FindingsTextarea findings={findings} isGenerating={isGenerating} onFindingsChange={onFindingsChange} />
 
-        <FormatSelector format={format} user={user} onFormatChange={onFormatChange} />
+        <FormatSelector format={format} userPlan={userPlan} onFormatChange={onFormatChange} />
 
         <GenerateButton isGenerating={isGenerating} findings={findings} format={format} onGenerate={onGenerate} />
       </CardContent>

@@ -34,18 +34,33 @@ export const getUserPlan = (user: any): string => {
   return user?.plan?.toLowerCase() || "free"
 }
 
-export const hasFeatureAccess = (user: any, feature: keyof PlanFeatures): boolean => {
-  const userPlan = getUserPlan(user)
-  const planFeatures = PLAN_FEATURES[userPlan] || PLAN_FEATURES.free
+export const refreshUserPlan = async (userId: string): Promise<string> => {
+  try {
+    const response = await fetch(`/api/user-plan?userId=${userId}`)
+    const data = await response.json()
 
+    if (response.ok && data.success) {
+      return data.plan.toLowerCase()
+    }
+
+    // Fallback to free plan if API fails
+    return "free"
+  } catch (error) {
+    console.error("Error refreshing user plan:", error)
+    return "free"
+  }
+}
+
+export const hasFeatureAccess = (userPlan: string, feature: keyof PlanFeatures): boolean => {
+  const planFeatures = PLAN_FEATURES[userPlan] || PLAN_FEATURES.free
   return planFeatures[feature] || false
 }
 
-export const getAvailableFormats = (user: any): Array<{ value: string; label: string; icon: string }> => {
+export const getAvailableFormats = (userPlan: string): Array<{ value: string; label: string; icon: string }> => {
   const formats = []
 
   // Short format is available for all plans
-  if (hasFeatureAccess(user, "shortImpression")) {
+  if (hasFeatureAccess(userPlan, "shortImpression")) {
     formats.push({
       value: "short",
       label: "Short",
@@ -54,7 +69,7 @@ export const getAvailableFormats = (user: any): Array<{ value: string; label: st
   }
 
   // Formal format only for Pro and Rad Plus
-  if (hasFeatureAccess(user, "formalImpression")) {
+  if (hasFeatureAccess(userPlan, "formalImpression")) {
     formats.push({
       value: "formal",
       label: "Formal",

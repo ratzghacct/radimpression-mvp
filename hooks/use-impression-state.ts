@@ -16,6 +16,8 @@ export const useImpressionState = () => {
   const [lastGeneratedAt, setLastGeneratedAt] = useState<Date | null>(null)
   const [showPricing, setShowPricing] = useState(false)
   const [format, setFormat] = useState("formal")
+  const [userPlan, setUserPlan] = useState("free")
+  const [planRefreshTrigger, setPlanRefreshTrigger] = useState(0)
 
   const resetState = () => {
     setFindings("")
@@ -33,6 +35,10 @@ export const useImpressionState = () => {
     }
   }
 
+  const triggerPlanRefresh = () => {
+    setPlanRefreshTrigger((prev) => prev + 1)
+  }
+
   return {
     // State values
     findings,
@@ -47,6 +53,8 @@ export const useImpressionState = () => {
     lastGeneratedAt,
     showPricing,
     format,
+    userPlan,
+    planRefreshTrigger,
 
     // State setters
     setFindings,
@@ -61,9 +69,12 @@ export const useImpressionState = () => {
     setLastGeneratedAt,
     setShowPricing,
     setFormat,
+    setUserPlan,
+    setPlanRefreshTrigger,
 
     // Utility functions
     resetState,
     validateState,
+    triggerPlanRefresh,
   }
 }
