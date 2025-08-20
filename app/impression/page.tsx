@@ -1,177 +1,378 @@
 "use client"
 
+import { CardTitle } from "@/components/ui/card"
+import { CardHeader } from "@/components/ui/card"
 import { useEffect } from "react"
-import { useAuth } from "@/contexts/auth-context"
 import { useRouter } from "next/navigation"
+import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Sparkles, History, AlertTriangle } from "lucide-react"
+import { useAuth } from "@/contexts/auth-context"
+import { toast } from "@/hooks/use-toast"
+import { PricingSection } from "@/components/pricing-section-notrequired"
+import { PricingPopup } from "@/components/pricing-popup"
+import { PricingPopupFull } from "@/components/pricing-popup-full"
+import { TokenUsageWidget } from "@/components/token-usage-widget"
+import { getAvailableFormats, refreshUserPlan } from "@/lib/plan-features"
+
+// Import modular components
 import { ImpressionHeader } from "@/components/impression-header"
-import { ImpressionFindingsCard } from "@/components/impression-findings-card"
-import { ImpressionResultCard } from "@/components/impression-result-card"
-import { ImpressionHistoryTab } from "@/components/impression-history-tab"
+import ImpressionFindingsCard from "@/components/impression-findings-card"
+import ImpressionResultCard from "@/components/impression-result-card"
+import ImpressionHistoryTab from "@/components/impression-history-tab"
+
+// Import hooks and utilities
 import { useImpressionState } from "@/hooks/use-impression-state"
 import { useImpressionEditor } from "@/hooks/use-impression-editor"
-import { generateImpressionAPI } from "@/lib/impression-api"
-import { fetchHistoryData } from "@/lib/impression-data"
-import { refreshUserPlan, getAvailableFormats } from "@/lib/plan-features"
+import { generateImpressionAPI, fetchHistoryAPI, handleAPIErrors } from "@/lib/impression-api"
+import { processImpressionData } from "@/lib/impression-data"
+import { copyToClipboard } from "@/lib/impression-utils"
 
 export default function ImpressionPage() {
-  const { user, loading } = useAuth()
+  const { user } = useAuth()
   const router = useRouter()
 
+  // State management
   const {
     findings,
     impression,
-    format,
     isGenerating,
+    tokenUsage,
     history,
-    isLoadingHistory,
+    searchTerm,
     activeTab,
+    showFullPricing,
+    showPricingPopup,
+    lastGeneratedAt,
+    showPricing,
+    format,
     userPlan,
     planRefreshTrigger,
     setFindings,
     setImpression,
-    setFormat,
     setIsGenerating,
+    setTokenUsage,
     setHistory,
-    setIsLoadingHistory,
+    setSearchTerm,
     setActiveTab,
+    setShowFullPricing,
+    setShowPricingPopup,
+    setLastGeneratedAt,
+    setShowPricing,
+    setFormat,
     setUserPlan,
-    updateState,
+    triggerPlanRefresh,
   } = useImpressionState()
 
-  const { editorRef, undoStack, redoStack, canUndo, canRedo, handleUndo, handleRedo, applyFormatting } =
-    useImpressionEditor(impression, setImpression)
+  // Editor management
+  const { editorRef, undoStack, redoStack, applyFormatting, onEditorInput } = useImpressionEditor()
 
-  // Redirect if not authenticated
   useEffect(() => {
-    if (!loading && !user) {
+    if (!user) {
       router.push("/login")
+      return
     }
-  }, [user, loading, router])
+    fetchHistory()
+    refreshPlan()
+  }, [user, router])
 
-  // Refresh user plan on mount and periodically
+  // Refresh plan data periodically and on focus
   useEffect(() => {
-    if (user?.uid) {
-      const refreshPlan = async () => {
-        const freshPlan = await refreshUserPlan(user.uid)
-        setUserPlan(freshPlan)
-      }
+    if (!user) return
 
-      refreshPlan()
-
-      // Refresh every 30 seconds
-      const interval = setInterval(refreshPlan, 30000)
-
-      return () => clearInterval(interval)
-    }
-  }, [user?.uid, planRefreshTrigger, setUserPlan])
-
-  // Refresh plan when window gains focus (user returns from admin)
-  useEffect(() => {
-    const handleFocus = async () => {
-      if (user?.uid) {
-        const freshPlan = await refreshUserPlan(user.uid)
-        setUserPlan(freshPlan)
-      }
+    const refreshPlan = async () => {
+      const userId = user?.uid || user?.id || "demo-user"
+      const freshPlan = await refreshUserPlan(userId)
+      setUserPlan(freshPlan)
     }
 
+    refreshPlan()
+
+    // Refresh plan every 30 seconds
+    const interval = setInterval(refreshPlan, 30000)
+
+    // Refresh plan when window gains focus
+    const handleFocus = () => refreshPlan()
     window.addEventListener("focus", handleFocus)
-    return () => window.removeEventListener("focus", handleFocus)
-  }, [user?.uid, setUserPlan])
 
-  // Auto-adjust format if user loses access
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener("focus", handleFocus)
+    }
+  }, [user, planRefreshTrigger])
+
+  // Update format when plan changes
   useEffect(() => {
     const availableFormats = getAvailableFormats(userPlan)
-    if (!availableFormats.includes(format)) {
-      setFormat(availableFormats[0] || "short")
+    if (availableFormats.length > 0 && !availableFormats.find((f) => f.value === format)) {
+      setFormat(availableFormats[0].value)
     }
-  }, [userPlan, format, setFormat])
+  }, [userPlan, format])
 
-  // Load history when switching to history tab
-  useEffect(() => {
-    if (activeTab === "history" && user?.uid && history.length === 0) {
-      fetchHistoryData(user.uid, setHistory, setIsLoadingHistory)
-    }
-  }, [activeTab, user?.uid, history.length, setHistory, setIsLoadingHistory])
+  const refreshPlan = async () => {
+    if (!user) return
+    const userId = user?.uid || user?.id || "demo-user"
+    const freshPlan = await refreshUserPlan(userId)
+    setUserPlan(freshPlan)
+  }
 
-  const handleGenerate = async () => {
-    if (!findings.trim() || !user?.uid) return
-
-    setIsGenerating(true)
+  const fetchHistory = async () => {
     try {
-      const result = await generateImpressionAPI(findings, format, user.uid)
-      setImpression(result)
-
-      // Refresh history after generating
-      if (activeTab === "history") {
-        fetchHistoryData(user.uid, setHistory, setIsLoadingHistory)
+      const userId = user?.uid || user?.id || "demo-user"
+      const data = await fetchHistoryAPI(userId)
+      if (data.history) {
+        setHistory(data.history)
       }
     } catch (error) {
-      console.error("Error generating impression:", error)
+      console.error("Error fetching history:", error)
+    }
+  }
+
+  const generateImpression = async () => {
+    if (!findings.trim()) {
+      toast({
+        title: "Missing Findings",
+        description: "Please enter your radiology findings first.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to generate impressions.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const userId = user.uid || user.id || "demo-user"
+    const userEmail = user.email || "demo@radimpression.com"
+    const userName = user.displayName || user.name || "Demo User"
+
+    if (!userId) {
+      toast({
+        title: "Authentication Error",
+        description: "Unable to identify user. Please try logging in again.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsGenerating(true)
+    setImpression("")
+    setTokenUsage(null)
+    let data: any = null
+
+    try {
+      data = await generateImpressionAPI({
+        findings: findings.trim(),
+        userId: userId,
+        userEmail: userEmail,
+        userName: userName,
+        format: format,
+      })
+
+      if (data.blocked) {
+        setShowPricingPopup(true)
+        toast({
+          title: "Account Suspended",
+          description: "Your account has reached its usage limit. Please upgrade to continue.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const processedData = processImpressionData(data)
+      setImpression(processedData.impression)
+      setTokenUsage(processedData.tokenUsage)
+      setLastGeneratedAt(processedData.generatedAt)
+
+      fetchHistory()
+
+      toast({
+        title: "Impression Generated!",
+        description: `Used ${data.tokenUsage.totalTokens} tokens (${format} format)`,
+      })
+    } catch (error: any) {
+      console.error("Error:", error)
+
+      const errorInfo = handleAPIErrors(error, data)
+
+      if (errorInfo.type === "tokenLimit") {
+        toast({
+          title: errorInfo.title,
+          description: errorInfo.description,
+          variant: "destructive",
+          duration: 10000,
+        })
+      } else if (errorInfo.type === "blocked") {
+        toast({
+          title: errorInfo.title,
+          description: errorInfo.description,
+          variant: "destructive",
+          duration: 10000,
+        })
+      } else {
+        toast({
+          title: errorInfo.title,
+          description: errorInfo.description,
+          variant: "destructive",
+        })
+      }
     } finally {
       setIsGenerating(false)
     }
   }
 
-  if (loading) {
+  const handlePurchase = async (planId: string, planName: string, price: string) => {
+    try {
+      router.push(`/payment-success?plan=${planId}&amount=${price}&name=${encodeURIComponent(planName)}`)
+
+      toast({
+        title: "Redirecting to Payment",
+        description: `Processing ${planName} purchase...`,
+      })
+    } catch (error) {
+      toast({
+        title: "Payment Error",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleCopyImpression = async (text: string) => {
+    await copyToClipboard(text)
+  }
+
+  const handleFormat = (command: string, value?: string) => {
+    applyFormatting(command, value, impression, setImpression)
+  }
+
+  const handleEditorInput = () => {
+    onEditorInput(setImpression)
+  }
+
+  if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
       </div>
     )
   }
 
-  if (!user) {
-    return null
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      <ImpressionHeader />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <ImpressionHeader user={user} onShowFullPricing={() => setShowFullPricing(true)} />
 
-      <main className="container mx-auto px-4 py-8">
+        {showPricing && (
+          <div className="mb-8">
+            <Card className="border-2 border-blue-200 shadow-xl">
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle className="text-2xl text-blue-900">Pricing Plans</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <PricingSection />
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="generate">Generate Impression</TabsTrigger>
-            <TabsTrigger value="history">History</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 mb-8">
+            <TabsTrigger value="generate" className="flex items-center space-x-2">
+              <Sparkles className="w-4 h-4" />
+              <span>Generate Impression</span>
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex items-center space-x-2">
+              <History className="w-4 h-4" />
+              <span>History ({history.length})</span>
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="generate" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <TabsContent value="generate">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <ImpressionFindingsCard
                 findings={findings}
-                setFindings={setFindings}
                 format={format}
-                setFormat={setFormat}
                 isGenerating={isGenerating}
-                onGenerate={handleGenerate}
+                user={user}
                 userPlan={userPlan}
+                onFindingsChange={setFindings}
+                onFormatChange={setFormat}
+                onGenerate={generateImpression}
               />
 
               <ImpressionResultCard
                 impression={impression}
+                tokenUsage={tokenUsage}
+                lastGeneratedAt={lastGeneratedAt}
+                isGenerating={isGenerating}
+                format={format}
                 editorRef={editorRef}
-                canUndo={canUndo}
-                canRedo={canRedo}
-                onUndo={handleUndo}
-                onRedo={handleRedo}
-                onFormat={applyFormatting}
+                undoStack={undoStack}
+                redoStack={redoStack}
+                onCopy={() => handleCopyImpression(impression)}
+                onUndo={() => editorRef.current?.undo()}
+                onRedo={() => editorRef.current?.redo()}
+                onFormat={handleFormat}
+                onEditorInput={handleEditorInput}
               />
-            </div>
-
-            <div className="text-center text-sm text-gray-500 mt-8">
-              <p>
-                This tool is for educational purposes only and should not replace professional medical judgment. Always
-                consult with qualified healthcare professionals for patient care decisions.
-              </p>
             </div>
           </TabsContent>
 
           <TabsContent value="history">
-            <ImpressionHistoryTab history={history} isLoading={isLoadingHistory} />
+            <ImpressionHistoryTab
+              history={history}
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              onCopyImpression={handleCopyImpression}
+              onSwitchToGenerate={() => setActiveTab("generate")}
+            />
           </TabsContent>
         </Tabs>
-      </main>
+
+        <div className="mt-8 space-y-6">
+          <TokenUsageWidget userId={user?.uid || ""} refreshTrigger={impression ? Date.now() : 0} />
+
+          <Card className="border-gray-200">
+            <CardContent className="p-4">
+              <div className="flex items-start space-x-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-gray-700 leading-relaxed">
+                  <strong>Disclaimer:</strong> The impressions generated by this tool are powered by AI based on the
+                  input findings provided by the user. These outputs are intended for assistance and productivity
+                  enhancement only.
+                  <br />
+                  <br />
+                  They are not a substitute for professional medical judgment, diagnosis, or decision-making. Users must
+                  independently verify all AI-generated content before using it in any official medical documentation,
+                  communication, or reporting.
+                  <br />
+                  <br />
+                  The tool's developers disclaim all liability for clinical use, interpretation errors, or patient
+                  outcomes resulting from reliance on AI-generated impressions.
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <PricingPopup isOpen={showPricingPopup} onClose={() => setShowPricingPopup(false)} />
+        <PricingPopupFull
+          isOpen={showFullPricing}
+          onClose={() => setShowFullPricing(false)}
+          onPurchase={handlePurchase}
+        />
+      </div>
     </div>
   )
 }
